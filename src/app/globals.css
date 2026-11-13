@@ -1,0 +1,191 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------
+   Gekonstruct design tokens — "field guide to your own codebase"
+   One light theme only (BLUEPRINT §2: no theme toggle).
+   Contrast verified against --background (#F7F5EF):
+   ink 16.3:1 · muted 5.6:1 · primary 6.1:1 · white-on-primary 6.7:1
+   --------------------------------------------------------------------------- */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-jetbrains);
+  --font-heading: var(--font-fraunces);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* Brand extras */
+  --color-skin-1: var(--skin-1);
+  --color-skin-2: var(--skin-2);
+  --color-skin-3: var(--skin-3);
+  --color-flag: var(--flag);
+  --color-flag-soft: var(--flag-soft);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: #f7f5ef;
+  --foreground: #101a15;
+  --card: #ffffff;
+  --card-foreground: #101a15;
+  --popover: #ffffff;
+  --popover-foreground: #101a15;
+  --primary: #12694a;
+  --primary-foreground: #ffffff;
+  --secondary: #efebe0;
+  --secondary-foreground: #1b2a22;
+  --muted: #f1ede3;
+  --muted-foreground: #5a6560;
+  --accent: #e9f0e8;
+  --accent-foreground: #0f5f43;
+  --destructive: #b42318;
+  --border: #e3dfd3;
+  --input: #9c9788;
+  --ring: #12694a;
+  --chart-1: #12694a;
+  --chart-2: #2fb27a;
+  --chart-3: #b9e769;
+  --chart-4: #f0c766;
+  --chart-5: #5a6560;
+  --radius: 0.75rem;
+  --sidebar: #f2efe6;
+  --sidebar-foreground: #101a15;
+  --sidebar-primary: #12694a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9f0e8;
+  --sidebar-accent-foreground: #0f5f43;
+  --sidebar-border: #e3dfd3;
+  --sidebar-ring: #12694a;
+  /* Chameleon skin — the one place we spend colour */
+  --skin-1: #2fb27a;
+  --skin-2: #b9e769;
+  --skin-3: #f0c766;
+  --flag: #b45309;
+  --flag-soft: #f8ecd8;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--skin-2) 55%, transparent);
+    color: var(--foreground);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-heading);
+    font-optical-sizing: auto;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@utility font-display {
+  font-family: var(--font-heading);
+  font-optical-sizing: auto;
+  letter-spacing: -0.015em;
+}
+
+/* Chameleon-skin gradient: brand mark + progress moments only. */
+@utility skin-gradient {
+  background-image: linear-gradient(
+    100deg,
+    var(--skin-1) 0%,
+    var(--skin-2) 58%,
+    var(--skin-3) 100%
+  );
+}
+
+/* File-path chip: the visual signature for "this is real code in YOUR repo". */
+@utility path-chip {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.1rem;
+  letter-spacing: -0.01em;
+  background: var(--muted);
+  color: var(--secondary-foreground);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.375rem;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Field-guide grid used behind the landing hero. */
+@utility field-grid {
+  background-image:
+    linear-gradient(to right, rgba(16, 26, 21, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(16, 26, 21, 0.05) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

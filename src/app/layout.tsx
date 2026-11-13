@@ -48,10 +48,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="h-full">
-      <body
-        className={`${geistSans.variable} ${fraunces.variable} ${jetbrains.variable} flex min-h-full flex-col antialiased`}
-      >
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${fraunces.variable} ${jetbrains.variable} h-full`}
+    >
+      <body className="flex min-h-full flex-col antialiased">
         {children}
         <Toaster position="bottom-right" />
       </body>

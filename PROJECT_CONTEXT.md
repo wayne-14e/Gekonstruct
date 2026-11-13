@@ -33,6 +33,11 @@ deterministically, then writes `snapshot/main`, the stack, stage `ingested` and 
 snapshot stats, file list and detected stack. Failures store `failed:ingested` +
 `stageError` and the UI offers a retry.
 
+LLM access is pointed at DeepSeek's OpenAI-compatible API: the `openai` SDK with
+`DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL=deepseek-flash` (DeepSeek-V4.1-Flash) and
+`DEEPSEEK_BASE_URL=https://api.deepseek.com`. No model call is written yet — the architecture
+stage is Phase 3.
+
 Design system live (redesigned 2026-11-13): dark IDE surface (`#0b0f14`), Space Grotesk
 for all UI + display with JetBrains Mono for labels, file paths and code (no serif/italic
 anywhere), lime `#5be000` primary with chunky 3px-edge buttons, chameleon-skin gradient
@@ -138,8 +143,9 @@ Names only; values live in `.env.local` (gitignored) and the host dashboard.
 | `NEXT_PUBLIC_APP_URL` | metadata base, auth redirect sanity |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` / `_AUTH_DOMAIN` / `_PROJECT_ID` / `_STORAGE_BUCKET` / `_MESSAGING_SENDER_ID` / `_APP_ID` | browser Firebase config |
 | `FIREBASE_SERVICE_ACCOUNT` | server only — firebase-admin credential, one-line JSON |
-| `ANTHROPIC_API_KEY` | server only — pipeline + debug (Phase 3+) |
-| `ANTHROPIC_MODEL` | optional model override, default `claude-sonnet-4-5` |
+| `DEEPSEEK_API_KEY` | server only — pipeline + debug (Phase 3+), sent to `https://api.deepseek.com` |
+| `DEEPSEEK_MODEL` | optional model override, default `deepseek-flash` (DeepSeek-V4.1-Flash) |
+| `DEEPSEEK_BASE_URL` | optional endpoint override, default `https://api.deepseek.com` |
 | `GITHUB_TOKEN` | optional, raises GitHub anonymous limit 60 req/h (used by `src/lib/github.ts`) |
 
 Local secret file `.secrets/firebase-service-account.json` is gitignored; `.env.local` holds
@@ -242,6 +248,16 @@ Append-only. Newest last.
   `https://github.com/owner/repo` (protocol optional, trailing `.git`/slash allowed) and
   rejects tree/file URLs with a message asking for the root. Rejected: guessing a branch
   from a `/tree/...` URL (silently teaches the wrong branch).
+- **2026-11-13 — LLM provider is DeepSeek, not Anthropic.** The user supplies a DeepSeek API
+  key and wants DeepSeek-V4.1-Flash. DeepSeek exposes an OpenAI-compatible API, so the
+  unused `@anthropic-ai/sdk` dependency was replaced with `openai`, and env names moved to
+  `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL` / `DEEPSEEK_BASE_URL`. The model API id is
+  `deepseek-flash` (display name “DeepSeek-V4.1-Flash”), not `deepseek-v4.1-flash`.
+  `BLUEPRINT.md` still names Anthropic on purpose — the user asked not to edit it — so this
+  entry is the authoritative record of the deviation. No pipeline code calls the model yet
+  (Phase 3). Rejected: keeping the Anthropic SDK pointed at a DeepSeek gateway (an extra
+  moving part with no benefit); a hand-rolled `fetch` client (DeepSeek documents the
+  official OpenAI SDK for Node and we get retries/timeouts for free).
 
 ## Change Log
 
@@ -324,7 +340,24 @@ Newest last.
   signed-in `/` and `/login` both 307 to `/dashboard`, sign-out clears `geko_session`.
   `npx tsc --noEmit`, `npm run lint`, `npm test` (26/26) and `npm run build` green.
 
+- **2026-11-13 — LLM credentials/config moved from Anthropic to DeepSeek.**
+  Files: `package.json`, `package-lock.json`, `.env.example` (and the local, gitignored
+  `.env.local`), `PROJECT_CONTEXT.md`. `BLUEPRINT.md` intentionally unchanged.
+  Why: the user will use a DeepSeek API key with DeepSeek-V4.1-Flash.
+  What: `@anthropic-ai/sdk` out, `openai` in (DeepSeek's documented Node client);
+  `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` became `DEEPSEEK_API_KEY` /
+  `DEEPSEEK_MODEL=deepseek-flash` / optional `DEEPSEEK_BASE_URL=https://api.deepseek.com`.
+  No model call was added — Phase 3 is still not started.
+  Verify: `npm ls openai` resolves and `npm ls @anthropic-ai/sdk` is empty; `grep -ri
+  anthropic src` returns nothing; `.env.local` exposes `DEEPSEEK_*` keys with the API key
+  blank until the user pastes it. Then `npx tsc --noEmit`, `npm run lint`, `npm test`
+  (26/26) and `npm run build` are green.
+
 ## Known Issues
+
+- **`DEEPSEEK_API_KEY` is still blank.** Phase 3 (the architecture stage) cannot make a
+  model call until the user pastes the DeepSeek key into `.env.local`. The SDK and env
+  names are wired; no LLM request exists yet.
 
 - **Google popup sign-in not yet verified in an automated browser** (needs an interactive
   Google account). The token→cookie→session path is verified with a minted session cookie;

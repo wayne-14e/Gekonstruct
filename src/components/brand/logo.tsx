@@ -15,7 +15,7 @@ export function Logo({
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <GekoBadge />
       {showWordmark ? (
-        <span className="font-display text-[1.0625rem] font-semibold tracking-[-0.02em] text-foreground">
+        <span className="font-display text-[1.0625rem] tracking-[-0.03em] text-foreground">
           Gekonstruct
         </span>
       ) : null}

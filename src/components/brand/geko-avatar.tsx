@@ -4,13 +4,13 @@ import { GekoMark } from "./geko-mark";
 export type GekoMood = "calm" | "encouraging" | "proud";
 
 /**
- * Three moods only (BLUEPRINT §9). Each mood is a tint + ink pair, both darker than
- * the tint so the mark keeps ≥3:1 against its own background.
+ * Three moods only (BLUEPRINT §9). Each mood is a dark tint + bright ink pair, so the
+ * mark keeps ≥7:1 against its own tile on the dark surface.
  */
 const MOODS: Record<GekoMood, { tint: string; ink: string; rim: string }> = {
-  calm: { tint: "#e7f1ea", ink: "#12694a", rim: "#cfe3d6" },
-  encouraging: { tint: "#eef6dc", ink: "#4d6a12", rim: "#dce9c0" },
-  proud: { tint: "#fbf0da", ink: "#8a560b", rim: "#f0dfbd" },
+  calm: { tint: "#0e2a1c", ink: "#5be000", rim: "#1e5033" },
+  encouraging: { tint: "#0b2b2b", ink: "#2dd4bf", rim: "#155149" },
+  proud: { tint: "#2b1f06", ink: "#ffc53d", rim: "#584211" },
 };
 
 const SIZES = {
@@ -33,7 +33,11 @@ export function GekoAvatar({
   const m = MOODS[mood];
   return (
     <span
-      className={cn("grid shrink-0 place-items-center border", SIZES[size], className)}
+      className={cn(
+        "grid shrink-0 place-items-center border shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]",
+        SIZES[size],
+        className,
+      )}
       style={{ background: m.tint, borderColor: m.rim, color: m.ink }}
     >
       <GekoMark className="size-[74%]" title={title} />
@@ -46,11 +50,11 @@ export function GekoBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground shadow-sm",
+        "grid size-8 shrink-0 place-items-center rounded-lg border border-[#7cf03d]/40 bg-primary text-primary-foreground shadow-[0_2px_0_var(--primary-edge)]",
         className,
       )}
     >
-      <GekoMark className="size-[78%]" strokeWidth={3.9} />
+      <GekoMark className="size-[76%]" strokeWidth={4} />
     </span>
   );
 }

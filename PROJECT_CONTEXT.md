@@ -21,11 +21,15 @@ redirected to `/login`. Google sign-in (client popup) → `signInAction` verifie
 provisions `users/{uid}`, sets an httpOnly `geko_session` cookie (14 days) and refreshes the
 route. Landing page, `/login`, `/dashboard` empty state, branded 404 + error boundary, sticky
 header with account menu, XP chip, footer. Firestore rules deployed to
-`gekonstruct-14174`. Design system live: Fraunces display + Geist body + JetBrains Mono,
-paper/canopy tokens, `GekoMark`/`GekoBadge`/`GekoAvatar`/`SpeechBubble`.
-Last verified: 2026-11-13 — `next build` green, `npx tsc --noEmit` green, `npm test` green
-(3/3), rules compiled + released, dashboard rendered for a real session cookie, no console
-errors on `/`, `/login`, `/dashboard`.
+`gekonstruct-14174`. Design system live (redesigned 2026-11-13): dark IDE surface
+(`#0b0f14`), Space Grotesk for all UI + display with JetBrains Mono for labels, file paths
+and code (no serif/italic anywhere), lime `#5be000` primary with chunky 3px-edge buttons,
+chameleon-skin gradient reserved for the brand mark and XP moments,
+`GekoMark`/`GekoBadge`/`GekoAvatar`/`SpeechBubble`.
+Last verified: 2026-11-13 — `next build` green, `npx tsc --noEmit` green, `npm run lint`
+green, `npm test` green (3/3), rules compiled + released, dashboard rendered for a real
+session cookie, no console errors or horizontal scroll on `/`, `/login`, `/dashboard`, 404
+at 1440px and 390px.
 
 ### Build plan — executing phase by phase
 
@@ -159,6 +163,21 @@ Append-only. Newest last.
   session cookie so authenticated pages can be screenshotted and clicked without a Google
   popup. It reads `.secrets/` and is never imported by app code. Alternative rejected: adding
   an e2e framework (AGENTS §6 says no e2e in the MVP).
+- **2026-11-13 — DESIGN REVERSAL: dark "JetBrains × Duolingo" replaces the field-guide
+  theme.** User explicitly asked for a darker developer-tool vibe, no serif or italic type,
+  Space Grotesk, "JetBrains × Duolingo". This supersedes the earlier "field guide" entry
+  (kept above for history). Tokens: bg `#0b0f14`, card `#121821`, elevated `#1a2230`, border
+  `#253041`, ink `#e8f0f6` (16.7:1), muted `#94a3b3` (6.9:1), primary `#5be000` with ink
+  `#08140a` (10.9:1) and edge `#3c9c00`, amber `#ffc53d`, teal `#2dd4bf`, violet `#a78bfa`,
+  danger `#ff7a70`. Type: Space Grotesk (UI + display) + JetBrains Mono (labels, paths,
+  code); Fraunces and Geist removed. Buttons carry a 3px bottom edge that compresses on
+  press (Duolingo half); terminal chrome, file-path chips and mono eyebrows carry the IDE
+  half. Rejected: keeping the light paper theme (contradicts the user's direction); a pure
+  IDE clone (no learning warmth); serif display accents (explicitly excluded).
+- **2026-11-13 — `next-themes` removed; the app is dark-only.** `<html>` sets
+  `color-scheme: dark`, the viewport theme colour is `#0b0f14`, and the Toaster is pinned to
+  `theme="dark"`. BLUEPRINT §2 still calls for one theme — only the chosen theme changed.
+  Rejected: keeping `next-themes` with `forcedTheme` (a dependency doing nothing).
 
 ## Change Log
 
@@ -188,6 +207,22 @@ Newest last.
   Verify without Google: `node scripts/dev-session.mjs qa-tester > /tmp/c.json`, then use the
   `sessionCookie` as the `geko_session` cookie (Playwright does this in the QA script).
 
+- **2026-11-13 — Visual redesign: dark JetBrains × Duolingo system (no phase advance).**
+  Files: `src/app/globals.css` (tokens, `label-mono`, `skin-gradient`, `path-chip`,
+  `field-grid`, rise/drift/pop keyframes), `src/app/layout.tsx` (Space Grotesk + JetBrains
+  Mono, dark viewport), `src/components/ui/{button,card,input,textarea,badge,skeleton,
+  sonner}.tsx`, `src/components/brand/{geko-avatar,logo,speech-bubble}.tsx`,
+  `src/components/app/{app-header,site-footer,xp-badge}.tsx`, `src/app/page.tsx` (landing
+  rewrite with terminal pipeline card), `src/app/(auth)/login/page.tsx`,
+  `src/app/(app)/dashboard/page.tsx`, `src/app/{not-found,error}.tsx`,
+  `package.json` (drop `next-themes`).
+  Why: user asked for a darker developer-tool look in one pass, without moving to Phase 2.
+  Verify: `npm run dev` → `/` at 1440px shows the full-width "You vibe-coded it. / Now own
+  it." hero, pathway cards and 2×2 steps, closing CTA; `/login` shows the account card +
+  Geko bubble; sign in (or `scripts/dev-session.mjs`) → `/dashboard` shows the XP chip and
+  empty state; `/definitely-not-a-page` shows the branded 404. Check 390px for no horizontal
+  scroll. `npx tsc --noEmit`, `npm run lint`, `npm run test` (3/3) and `npm run build` green.
+
 ## Known Issues
 
 - **Google popup sign-in not yet verified in an automated browser** (needs an interactive
@@ -197,12 +232,14 @@ Newest last.
   and must never be deployed or its output shared.
 - Dashboard “Connect a repository” is intentionally disabled until Phase 2.
 - Landing page copy describes pathways that are not yet clickable (Phases 2–5).
-- No dark theme (intentional, BLUEPRINT §2).
+- **FIXED 2026-11-13 — No dark theme.** Superseded by the design reversal: the product is
+  dark-only now (see Decisions Log).
 - Placeholder brand mark (intentional until real logo lands).
 
 ## Backlog / Out of Scope
 
-- Dark appearance, i18n, mobile app, payments, leaderboards, streaks (BLUEPRINT §2).
+- Theme toggle / light appearance, i18n, mobile app, payments, leaderboards, streaks
+  (BLUEPRINT §2).
 - Private repos, ZIP upload, GitLab/Bitbucket.
 - Auto-fixing code; Gekonstruct never writes to the user's repo.
 - Mermaid diagram is optional polish — never blocks a milestone.

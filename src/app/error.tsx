@@ -20,7 +20,7 @@ export default function GlobalError({
     <div className="flex min-h-dvh items-center justify-center px-4 py-16">
       <div className="max-w-md text-center">
         <GekoMark className="mx-auto size-16 text-primary" />
-        <h1 className="mt-6 text-3xl font-semibold">Something broke on our side</h1>
+        <h1 className="mt-6 text-3xl">Something broke on our side</h1>
         <p className="mt-3 text-muted-foreground">
           Geko dropped a branch. Your data is fine — try that again, and if it keeps
           happening the reference below helps us find it.

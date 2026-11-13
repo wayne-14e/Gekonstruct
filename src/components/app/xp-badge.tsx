@@ -1,8 +1,9 @@
+import { Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * XP chip. Monospace numbers so the total reads like a counter, not prose.
- * The skin gradient is the reward signal — used here and on progress bars only.
+ * XP chip. Monospace numerals in amber — the reward signal, lifted straight from the
+ * gamified-learning vocabulary the product speaks.
  */
 export function XpBadge({
   totalXp,
@@ -16,15 +17,15 @@ export function XpBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border border-border bg-card font-medium text-foreground",
-        size === "sm" ? "h-6 px-2 text-xs" : "h-8 px-3 text-sm",
+        "inline-flex items-center gap-1.5 rounded-lg border border-[#584211] bg-[#2b1f06] font-medium text-[#ffc53d]",
+        size === "sm" ? "h-7 px-2 text-xs" : "h-9 px-3 text-sm",
         className,
       )}
       aria-label={`${totalXp} experience points`}
     >
-      <span className="skin-gradient size-2 rounded-full" aria-hidden="true" />
-      <span className="font-mono tabular-nums">{totalXp.toLocaleString()}</span>
-      <span className="text-muted-foreground">XP</span>
+      <Zap className="size-3.5 fill-current" aria-hidden="true" />
+      <span className="font-mono font-semibold tabular-nums">{totalXp.toLocaleString()}</span>
+      <span className="text-[#c9a13c]">XP</span>
     </span>
   );
 }

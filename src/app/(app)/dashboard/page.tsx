@@ -22,7 +22,8 @@ export default async function DashboardPage() {
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold sm:text-4xl">Your projects</h1>
+          <p className="label-mono">Workspace</p>
+          <h1 className="mt-2 text-3xl sm:text-4xl">Your projects</h1>
           <p className="mt-2 max-w-xl text-muted-foreground">
             {projectCount === 0
               ? `No repositories connected yet. You can connect up to ${PROJECT_LIMIT} while we validate.`
@@ -38,7 +39,7 @@ export default async function DashboardPage() {
         <div className="rounded-2xl border border-dashed border-border bg-card/70 px-5 py-12 text-center sm:px-10">
           <div className="mx-auto flex max-w-md flex-col items-center">
             <GekoAvatar mood="encouraging" size="lg" />
-            <h2 id="empty-projects" className="mt-4 text-xl font-semibold">
+            <h2 id="empty-projects" className="mt-4 text-xl">
               Your first repo goes here
             </h2>
             <p className="mt-2 text-[0.9375rem] leading-relaxed text-muted-foreground">

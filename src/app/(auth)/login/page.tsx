@@ -36,8 +36,9 @@ export default async function LoginPage({
 
       <main id="main" className="flex flex-1 items-center justify-center px-4 py-10">
         <div className="grid w-full max-w-4xl grid-cols-1 gap-10 lg:grid-cols-[1fr_0.85fr] lg:items-center">
-          <section className="animate-rise rounded-2xl border border-border bg-card p-6 shadow-[0_20px_50px_-40px_rgba(16,26,21,0.6)] sm:p-8">
-            <h1 className="text-3xl font-semibold sm:text-4xl">Sign in to Gekonstruct</h1>
+          <section className="animate-rise rounded-2xl border border-border bg-card p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_28px_60px_-45px_rgba(0,0,0,1)] sm:p-8">
+            <p className="label-mono">Account</p>
+            <h1 className="mt-2 text-3xl sm:text-4xl">Sign in to Gekonstruct</h1>
             <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted-foreground">
               Google sign-in keeps your dashboard, XP and project history tied to you. We
               only ever read the public repositories you connect.

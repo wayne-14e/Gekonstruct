@@ -18,7 +18,7 @@ export function AppHeader({
   children?: React.ReactNode;
 }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-border/80 bg-background/85 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-border/80 bg-[#0b0f14]/85 backdrop-blur-xl">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
         <Logo />
         {nav ? (
@@ -56,8 +56,8 @@ export function HeaderLink({
       aria-current={active ? "page" : undefined}
       className={
         active
-          ? "rounded-md px-2.5 py-1.5 text-sm font-medium text-foreground"
-          : "rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          ? "rounded-md border border-border bg-secondary px-2.5 py-1.5 text-sm font-semibold text-foreground"
+          : "rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
       }
     >
       {children}

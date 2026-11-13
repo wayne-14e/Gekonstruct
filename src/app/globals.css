@@ -5,18 +5,19 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ---------------------------------------------------------------------------
-   Gekonstruct design tokens — "field guide to your own codebase"
-   One light theme only (BLUEPRINT §2: no theme toggle).
-   Contrast verified against --background (#F7F5EF):
-   ink 16.3:1 · muted 5.6:1 · primary 6.1:1 · white-on-primary 6.7:1
+   Gekonstruct design tokens — "IDE you can learn in", JetBrains x Duolingo
+   Dark-only (BLUEPRINT §2: one theme, no toggle).
+   Contrast verified against --background (#0b0f14) / --card (#121821):
+   ink 16.7:1 · muted 6.9:1 · primary 11.1:1 · ink-on-primary 10.9:1
+   amber 11.3:1 · teal 9.6:1 · danger 7.0:1
    --------------------------------------------------------------------------- */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-space-grotesk);
   --font-mono: var(--font-jetbrains);
-  --font-heading: var(--font-fraunces);
+  --font-heading: var(--font-space-grotesk);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -47,76 +48,82 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
   /* Brand extras */
+  --color-elevated: var(--elevated);
   --color-skin-1: var(--skin-1);
   --color-skin-2: var(--skin-2);
   --color-skin-3: var(--skin-3);
   --color-flag: var(--flag);
-  --color-flag-soft: var(--flag-soft);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  --color-teal: var(--teal);
+  --color-violet: var(--violet);
+  --radius-sm: calc(var(--radius) * 0.55);
+  --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-xl: calc(var(--radius) * 1.35);
+  --radius-2xl: calc(var(--radius) * 1.7);
+  --radius-3xl: calc(var(--radius) * 2.1);
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 :root {
-  --background: #f7f5ef;
-  --foreground: #101a15;
-  --card: #ffffff;
-  --card-foreground: #101a15;
-  --popover: #ffffff;
-  --popover-foreground: #101a15;
-  --primary: #12694a;
-  --primary-foreground: #ffffff;
-  --secondary: #efebe0;
-  --secondary-foreground: #1b2a22;
-  --muted: #f1ede3;
-  --muted-foreground: #5a6560;
-  --accent: #e9f0e8;
-  --accent-foreground: #0f5f43;
-  --destructive: #b42318;
-  --border: #e3dfd3;
-  --input: #9c9788;
-  --ring: #12694a;
-  --chart-1: #12694a;
-  --chart-2: #2fb27a;
-  --chart-3: #b9e769;
-  --chart-4: #f0c766;
-  --chart-5: #5a6560;
-  --radius: 0.75rem;
-  --sidebar: #f2efe6;
-  --sidebar-foreground: #101a15;
-  --sidebar-primary: #12694a;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e9f0e8;
-  --sidebar-accent-foreground: #0f5f43;
-  --sidebar-border: #e3dfd3;
-  --sidebar-ring: #12694a;
+  --background: #0b0f14;
+  --foreground: #e8f0f6;
+  --card: #121821;
+  --card-foreground: #e8f0f6;
+  --popover: #161e28;
+  --popover-foreground: #e8f0f6;
+  --primary: #5be000;
+  --primary-foreground: #08140a;
+  --primary-edge: #3c9c00;
+  --secondary: #1a2230;
+  --secondary-foreground: #e8f0f6;
+  --muted: #161e28;
+  --muted-foreground: #94a3b3;
+  --accent: #1c2836;
+  --accent-foreground: #7cf03d;
+  --destructive: #ff7a70;
+  --border: #253041;
+  --input: #33415a;
+  --ring: #5be000;
+  --chart-1: #5be000;
+  --chart-2: #2dd4bf;
+  --chart-3: #ffc53d;
+  --chart-4: #a78bfa;
+  --chart-5: #94a3b3;
+  --radius: 0.875rem;
+  --sidebar: #0e141b;
+  --sidebar-foreground: #e8f0f6;
+  --sidebar-primary: #5be000;
+  --sidebar-primary-foreground: #08140a;
+  --sidebar-accent: #1c2836;
+  --sidebar-accent-foreground: #7cf03d;
+  --sidebar-border: #253041;
+  --sidebar-ring: #5be000;
   /* Chameleon skin — the one place we spend colour */
-  --skin-1: #2fb27a;
-  --skin-2: #b9e769;
-  --skin-3: #f0c766;
-  --flag: #b45309;
-  --flag-soft: #f8ecd8;
+  --elevated: #1a2230;
+  --skin-1: #2dd4bf;
+  --skin-2: #5be000;
+  --skin-3: #ffc53d;
+  --flag: #ffc53d;
+  --teal: #2dd4bf;
+  --violet: #a78bfa;
 }
 
 @layer base {
+  html {
+    @apply font-sans;
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+  }
   * {
     @apply border-border outline-ring/50;
   }
-  html {
-    @apply font-sans;
-    -webkit-text-size-adjust: 100%;
-  }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "cv11", "ss01";
+    font-feature-settings: "ss01";
     text-rendering: optimizeLegibility;
   }
   ::selection {
-    background: color-mix(in oklab, var(--skin-2) 55%, transparent);
+    background: color-mix(in oklab, var(--primary) 32%, transparent);
     color: var(--foreground);
   }
   :focus-visible {
@@ -127,29 +134,57 @@
   h2,
   h3 {
     font-family: var(--font-heading);
-    font-optical-sizing: auto;
-    letter-spacing: -0.015em;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
     text-wrap: balance;
   }
   p {
     text-wrap: pretty;
   }
+  code,
+  kbd,
+  pre {
+    font-family: var(--font-mono);
+  }
 }
 
 @utility font-display {
   font-family: var(--font-heading);
-  font-optical-sizing: auto;
-  letter-spacing: -0.015em;
+  font-weight: 700;
+  letter-spacing: -0.03em;
 }
 
-/* Chameleon-skin gradient: brand mark + progress moments only. */
+/* Mono eyebrow: the IDE voice. */
+@utility label-mono {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+/* Chameleon-skin gradient: brand mark + progress/XP moments only. */
 @utility skin-gradient {
   background-image: linear-gradient(
     100deg,
     var(--skin-1) 0%,
-    var(--skin-2) 58%,
+    var(--skin-2) 55%,
     var(--skin-3) 100%
   );
+}
+
+@utility text-skin-gradient {
+  background-image: linear-gradient(
+    100deg,
+    var(--skin-1) 0%,
+    var(--skin-2) 55%,
+    var(--skin-3) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* File-path chip: the visual signature for "this is real code in YOUR repo". */
@@ -158,11 +193,11 @@
   font-size: 0.75rem;
   line-height: 1.1rem;
   letter-spacing: -0.01em;
-  background: var(--muted);
-  color: var(--secondary-foreground);
+  background: #101720;
+  color: #a9bccb;
   border: 1px solid var(--border);
   border-radius: 0.375rem;
-  padding: 0.125rem 0.375rem;
+  padding: 0.125rem 0.4375rem;
   white-space: nowrap;
   max-width: 100%;
   overflow: hidden;
@@ -171,12 +206,12 @@
   vertical-align: middle;
 }
 
-/* Field-guide grid used behind the landing hero. */
+/* Editor-gutter grid behind the hero. */
 @utility field-grid {
   background-image:
-    linear-gradient(to right, rgba(16, 26, 21, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(16, 26, 21, 0.05) 1px, transparent 1px);
-  background-size: 28px 28px;
+    linear-gradient(to right, rgba(232, 240, 246, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(232, 240, 246, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 /* One orchestrated entrance for the landing hero; nothing else moves. */
@@ -192,7 +227,7 @@
 }
 
 @utility animate-rise {
-  animation: geko-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: geko-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes geko-drift {
@@ -201,12 +236,31 @@
     transform: translate3d(0, 0, 0) rotate(0deg);
   }
   50% {
-    transform: translate3d(0, -6px, 0) rotate(-1.2deg);
+    transform: translate3d(0, -6px, 0) rotate(-1.4deg);
   }
 }
 
 @utility animate-drift {
   animation: geko-drift 9s ease-in-out infinite;
+}
+
+/* Chunky, game-like press: the Duolingo half of the brief. */
+@keyframes geko-pop {
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@utility animate-pop {
+  animation: geko-pop 0.35s cubic-bezier(0.3, 1.4, 0.5, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {

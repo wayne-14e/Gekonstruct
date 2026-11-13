@@ -10,9 +10,8 @@ export function SiteFooter() {
             Gekonstruct — built for people who shipped before they understood.
           </span>
         </div>
-        <p className="max-w-md sm:text-right">
-          Reads public repositories. Never modifies, pushes, or stores your code beyond the
-          analysis snapshot.
+        <p className="max-w-md font-mono text-xs leading-relaxed sm:text-right">
+          reads public repos · never writes · never pushes
         </p>
       </div>
     </footer>

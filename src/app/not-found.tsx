@@ -15,7 +15,7 @@ export default function NotFound() {
           <p className="mt-6 font-mono text-xs tracking-[0.12em] text-muted-foreground uppercase">
             404
           </p>
-          <h1 className="mt-2 text-3xl font-semibold">Geko could not find that page</h1>
+          <h1 className="mt-2 text-3xl">Geko could not find that page</h1>
           <p className="mt-3 text-muted-foreground">
             The link may be old, or the project it pointed at is gone. Nothing in your
             repositories was touched.

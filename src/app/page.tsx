@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowRight, BookOpenCheck, Bug, Check, Network } from "lucide-react";
 import { AppHeader, HeaderLink } from "@/components/app/app-header";
 import { SiteFooter } from "@/components/app/site-footer";
@@ -74,6 +75,10 @@ const PIPELINE = [
 export default async function LandingPage() {
   const user = await getCurrentUser();
 
+  // Signed-in visitors only ever see their dashboard; the landing page is a signed-out
+  // surface, and "Back to the landing page" from /login only works after signing out.
+  if (user) redirect("/dashboard");
+
   return (
     <div className="flex min-h-dvh flex-col">
       <a
@@ -103,50 +108,49 @@ export default async function LandingPage() {
           />
 
           <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
-            <p className="animate-rise inline-flex items-center gap-2 rounded-full border border-border bg-secondary/80 px-3 py-1">
-              <span className="relative flex size-1.5">
-                <span className="absolute inline-flex size-full rounded-full bg-primary opacity-60" />
-                <span className="relative inline-flex size-1.5 rounded-full bg-primary" />
-              </span>
-              <span className="label-mono !text-[#a9bccb]">The context wall ends here</span>
-            </p>
+            <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
+              <p className="animate-rise inline-flex items-center gap-2 rounded-full border border-border bg-secondary/80 px-3 py-1">
+                <span className="relative flex size-1.5">
+                  <span className="absolute inline-flex size-full rounded-full bg-primary opacity-60" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-primary" />
+                </span>
+                <span className="label-mono !text-[#a9bccb]">The context wall ends here</span>
+              </p>
 
-            <h1 className="animate-rise mt-5 text-[clamp(2.35rem,8.2vw,5.4rem)] leading-[0.94] tracking-[-0.045em] [animation-delay:60ms]">
-              <span className="block">You vibe-coded it.</span>
-              <span className="relative mt-1 block w-fit">
-                Now own it.
-                <span
-                  className="skin-gradient absolute inset-x-0 -bottom-1.5 h-2 rounded-full opacity-90"
-                  aria-hidden="true"
-                />
-              </span>
-            </h1>
+              <h1 className="animate-rise mt-5 text-[clamp(2.35rem,8.2vw,5.4rem)] leading-[0.94] tracking-[-0.045em] [animation-delay:60ms]">
+                <span className="block">You vibe-coded it.</span>
+                <span className="relative mx-auto mt-1 block w-fit">
+                  Now own it.
+                  <span
+                    className="skin-gradient absolute inset-x-0 -bottom-1.5 h-2 rounded-full opacity-90"
+                    aria-hidden="true"
+                  />
+                </span>
+              </h1>
 
-            <div className="mt-10 grid grid-cols-1 gap-10 lg:mt-14 lg:grid-cols-[1.05fr_0.95fr] lg:items-start lg:gap-14">
-              <div>
-                <p className="animate-rise max-w-xl text-[1.0625rem] leading-relaxed text-muted-foreground [animation-delay:120ms]">
-                  Geko reads your public repo and explains it back through your own files: an
-                  architecture map, a lesson series, and a debug guide. No patches, no magic —
-                  just your code, taught to you.
-                </p>
+              <p className="animate-rise mt-6 max-w-xl text-[1.0625rem] leading-relaxed text-muted-foreground [animation-delay:120ms]">
+                Geko reads your public repo and teaches it back in plain English —
+                architecture, lessons and debug steps, all from your own files.
+              </p>
 
-                <div className="animate-rise mt-8 flex flex-col gap-3 sm:flex-row [animation-delay:180ms]">
-                  <Button asChild size="lg">
-                    <Link href={user ? "/dashboard" : "/login"}>
-                      {user ? "Open your dashboard" : "Start with Google"}
-                      <ArrowRight aria-hidden="true" />
-                    </Link>
-                  </Button>
-                  <Button asChild size="lg" variant="outline">
-                    <Link href="#pathways">See the three pathways</Link>
-                  </Button>
-                </div>
-
-                <p className="animate-rise mt-6 font-mono text-xs leading-relaxed text-[#7a8a99] [animation-delay:240ms]">
-                  public repos only · 3 projects per account · read-only, always
-                </p>
+              <div className="animate-rise mt-8 flex flex-col gap-3 sm:flex-row [animation-delay:180ms]">
+                <Button asChild size="lg">
+                  <Link href="/login">
+                    Start with Google
+                    <ArrowRight aria-hidden="true" />
+                  </Link>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                  <Link href="#pathways">See the three pathways</Link>
+                </Button>
               </div>
 
+              <p className="animate-rise mt-6 font-mono text-[0.6875rem] leading-relaxed text-[#7a8a99] tracking-[0.04em] sm:text-xs [animation-delay:240ms]">
+                public repos only · 3 projects · read-only
+              </p>
+            </div>
+
+            <div className="mt-12 sm:mt-14">
               <HeroTerminal />
             </div>
           </div>
@@ -280,8 +284,8 @@ export default async function LandingPage() {
                   </div>
                 </div>
                 <Button asChild size="lg">
-                  <Link href={user ? "/dashboard" : "/login"}>
-                    {user ? "Go to dashboard" : "Connect a repo"}
+                  <Link href="/login">
+                    Connect a repo
                     <ArrowRight aria-hidden="true" />
                   </Link>
                 </Button>
@@ -299,55 +303,57 @@ export default async function LandingPage() {
 function HeroTerminal() {
   return (
     <div className="animate-rise relative [animation-delay:150ms]">
-      <div className="rounded-2xl border border-border bg-[#0c1219] shadow-[0_30px_70px_-45px_rgba(0,0,0,1)]">
-        <div className="flex items-center gap-2 border-b border-border bg-[#101821] px-3 py-2.5">
+      <div className="overflow-hidden rounded-2xl border border-border bg-[#0c1219] shadow-[0_40px_90px_-50px_rgba(0,0,0,1)]">
+        <div className="flex items-center gap-2 border-b border-border bg-[#101821] px-4 py-3">
           <span className="flex gap-1.5" aria-hidden="true">
-            <span className="size-2.5 rounded-full bg-[#2a3646]" />
-            <span className="size-2.5 rounded-full bg-[#2a3646]" />
-            <span className="size-2.5 rounded-full bg-[#2a3646]" />
+            <span className="size-3 rounded-full border border-black/20 bg-[#ff5f57]" />
+            <span className="size-3 rounded-full border border-black/20 bg-[#febc2e]" />
+            <span className="size-3 rounded-full border border-black/20 bg-[#28c840]" />
           </span>
-          <span className="ml-1 font-mono text-[0.6875rem] text-muted-foreground">
+          <span className="ml-2 font-mono text-xs text-muted-foreground">
             geko — pipeline
           </span>
           <span className="path-chip ml-auto">you/your-app</span>
         </div>
 
-        <div className="px-4 py-4 font-mono text-[0.75rem] leading-6 sm:text-[0.8125rem]">
-          <p className="text-[#7a8a99]">
-            <span className="text-primary">$</span> geko analyze github.com/you/your-app
-          </p>
-          <ul className="mt-2 space-y-1">
-            {PIPELINE.map((row) => (
-              <li key={row.label} className="flex items-start gap-2">
-                <Check
-                  className="mt-1 size-3.5 shrink-0 text-primary"
-                  aria-hidden="true"
-                />
-                <span className="text-[#a9bccb]">
-                  <span className="text-foreground">{row.label}</span>
-                  <span className="text-[#4d5b6b]"> · </span>
-                  {row.value}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 text-[#7a8a99]">
-            <span className="text-primary">→</span> guidebook ready
-          </p>
-        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="px-4 py-5 font-mono text-[0.8125rem] leading-7 sm:px-6 sm:py-6 sm:text-sm">
+            <p className="text-[#7a8a99]">
+              <span className="text-primary">$</span> geko analyze github.com/you/your-app
+            </p>
+            <ul className="mt-2 space-y-1">
+              {PIPELINE.map((row) => (
+                <li key={row.label} className="flex items-start gap-2">
+                  <Check
+                    className="mt-1.5 size-3.5 shrink-0 text-primary"
+                    aria-hidden="true"
+                  />
+                  <span className="text-[#a9bccb]">
+                    <span className="text-foreground">{row.label}</span>
+                    <span className="text-[#4d5b6b]"> · </span>
+                    {row.value}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-[#7a8a99]">
+              <span className="text-primary">→</span> guidebook ready
+            </p>
+          </div>
 
-        <div className="flex items-start gap-3 border-t border-border bg-card px-4 py-4">
-          <GekoAvatar mood="encouraging" size="sm" />
-          <p className="text-sm leading-relaxed">
-            <span className="font-mono text-[0.625rem] tracking-[0.14em] text-muted-foreground uppercase">
-              geko
-            </span>
-            <span className="mt-1 block">
-              “Your landing page renders from{" "}
-              <span className="text-primary">src/app/page.tsx</span> — start there when a
-              change goes wrong.” 🦎
-            </span>
-          </p>
+          <div className="flex items-start gap-3 border-t border-border bg-card px-4 py-5 sm:px-6 lg:items-center lg:border-t-0 lg:border-l">
+            <GekoAvatar mood="encouraging" size="sm" />
+            <p className="text-sm leading-relaxed">
+              <span className="font-mono text-[0.625rem] tracking-[0.14em] text-muted-foreground uppercase">
+                geko
+              </span>
+              <span className="mt-1 block">
+                “Your landing page renders from{" "}
+                <span className="text-primary">src/app/page.tsx</span> — start there when a
+                change goes wrong.” 🦎
+              </span>
+            </p>
+          </div>
         </div>
       </div>
 

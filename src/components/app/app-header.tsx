@@ -19,15 +19,22 @@ export function AppHeader({
 }) {
   return (
     <header className="sticky top-0 z-40 border-b border-border/80 bg-[#0b0f14]/85 backdrop-blur-xl">
-      <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4 sm:px-6">
-        <Logo />
+      <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:px-6">
+        <div className="flex min-w-0 items-center gap-2">
+          <Logo />
+          {children}
+        </div>
         {nav ? (
-          <nav aria-label="Main" className="ml-2 hidden items-center gap-1 sm:flex">
+          <nav
+            aria-label="Main"
+            className="hidden items-center justify-center gap-1 sm:flex sm:justify-self-center"
+          >
             {nav}
           </nav>
-        ) : null}
-        {children}
-        <div className="ml-auto flex items-center gap-2">
+        ) : (
+          <span className="hidden sm:block" aria-hidden="true" />
+        )}
+        <div className="ml-auto flex items-center gap-2 sm:ml-0 sm:justify-self-end">
           {user ? (
             <UserMenu user={user} />
           ) : (

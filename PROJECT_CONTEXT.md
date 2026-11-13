@@ -39,12 +39,19 @@ anywhere), lime `#5be000` primary with chunky 3px-edge buttons, chameleon-skin g
 reserved for the brand mark and XP moments,
 `GekoMark`/`GekoBadge`/`GekoAvatar`/`SpeechBubble`.
 
+Landing page is a signed-out-only surface: a centred hero (badge, display headline,
+short subtitle, two CTAs, limits line) above a full-width sample-pipeline window with
+mac-style red/yellow/green dots, followed by the pathways, how-it-works and closing CTA.
+Signed-in visitors are redirected to `/dashboard`; signing out returns them to `/`.
+
 Last verified: 2026-11-13 — `next build` green, `npx tsc --noEmit` green, `npm run lint`
 green, `npm test` green (26/26), dashboard + project pages rendered for a real session
 cookie, no console errors at 1440px or 390px. Live ingestion: `shadcn-ui/taxonomy`,
 `firebase/quickstart-js` and `vercel/next-learn` each kept 60 files with no excluded paths
 and no stored content over 12,000 chars; `octocat/Hello-World` failed with the friendly
-stack message; the 3-project cap disabled the form.
+stack message; the 3-project cap disabled the form. Hero verified centred at 1440px and
+390px (h1 centre = viewport centre, no horizontal scroll); signed-in `/` and `/login`
+redirect to `/dashboard`; sign-out lands on `/` with the session cookie cleared.
 
 ### Build plan — executing phase by phase
 
@@ -81,9 +88,10 @@ stack message; the 3-project cap disabled the form.
                  debugSessions/{sid}, progress/{uid}}
 ```
 
-Routes as built: `/` (landing, dynamic — reads session for the CTA), `/login`,
-`/dashboard` (guarded in `src/app/(app)/layout.tsx`), `/projects/[id]` (ingest runner +
-snapshot), `/api/pipeline/ingest` (POST), `not-found`, `error`.
+Routes as built: `/` (landing, signed-out only — a signed-in visitor is redirected to
+`/dashboard`), `/login`, `/dashboard` (guarded in `src/app/(app)/layout.tsx`),
+`/projects/[id]` (ingest runner + snapshot), `/api/pipeline/ingest` (POST),
+`not-found`, `error`.
 Planned: `/projects/[id]/{overview,learn,debug}` (Phases 3–5), `/api/pipeline/{architecture,
 lessons1,lessons2}`, `/api/debug/run`.
 
@@ -225,6 +233,11 @@ Append-only. Newest last.
   component. This also works for cookie-only QA sessions that have no client Firebase user.
   Revisit in Phase 3, when four stages stream progress and `onSnapshot(project)` earns its
   keep. Rejected: adding a client listener now for a single step.
+- **2026-11-13 — The landing page is signed-out only.** `/` calls `getCurrentUser()` and
+  redirects a signed-in visitor to `/dashboard`; `/login` already did the same. This makes
+  the product one workspace once you are inside, and keeps `/` as the pre-auth pitch.
+  Rejected: rendering the landing page with "Open dashboard" CTAs (two competing homes,
+  and the nav reads as marketing while signed in).
 - **2026-11-13 — Repository URLs must be roots.** `parseRepoUrl` accepts
   `https://github.com/owner/repo` (protocol optional, trailing `.git`/slash allowed) and
   rejects tree/file URLs with a message asking for the root. Rejected: guessing a branch
@@ -292,6 +305,24 @@ Newest last.
   Verified 2026-11-13 with Playwright: taxonomy 60 files / 126.4k chars / 1 truncated;
   quickstart-js 60 / 146.0k / 1; next-learn 60 / 54.7k / 0; Hello-World failed with the
   stack message; no console errors desktop or 390px; `tsc`, lint, 26/26 tests and build green.
+
+- **2026-11-13 — Landing hero recentred, sample window enlarged, header nav centred.**
+  Files: `src/app/page.tsx`, `src/components/app/app-header.tsx`.
+  Why: the hero read as a left-aligned marketing split; the user wanted one centred column
+  with the preview as the focal point, and the header nav visually centred.
+  What: badge → h1 → shortened subtitle → CTA row → limits line, all centred with the h1
+  exactly on the viewport centre; the sample pipeline window is now full width beneath,
+  split into command/pipeline and Geko commentary, with mac-style red/yellow/green dots;
+  `AppHeader` uses a `1fr auto 1fr` grid at `sm+` so nav links sit at the true centre while
+  the logo and account stay at the edges (flex fallback keeps Sign in right on mobile).
+  Signed-in visitors are redirected from `/` to `/dashboard`; sign-out returns to `/`.
+  Verify: sign out, open `/` at 1440px — h1 is centred, the only horizontal list is above
+  the window, the window spans the container, dots are red/yellow/green. Sign in, visit
+  `/` — you land on `/dashboard`; sign out — you land on `/` and `/dashboard` bounces to
+  `/login`. Keyboard-check the header nav. Verified 2026-11-13 with Playwright at 1440px and
+  390px: h1 boxes centred (x+w/2 = 720 and 195), no horizontal scroll, no console errors,
+  signed-in `/` and `/login` both 307 to `/dashboard`, sign-out clears `geko_session`.
+  `npx tsc --noEmit`, `npm run lint`, `npm test` (26/26) and `npm run build` green.
 
 ## Known Issues
 

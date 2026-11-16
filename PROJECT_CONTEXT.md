@@ -258,6 +258,18 @@ Append-only. Newest last.
   (Phase 3). Rejected: keeping the Anthropic SDK pointed at a DeepSeek gateway (an extra
   moving part with no benefit); a hand-rolled `fetch` client (DeepSeek documents the
   official OpenAI SDK for Node and we get retries/timeouts for free).
+- **2026-11-16 — `jose` pinned to `^4.15.9` via npm overrides and `engines.node` pinned to `>=22.0.0`.**
+  On Vercel (or any serverless environment where Node executes CommonJS or runs < 20.19.0),
+  `firebase-admin/auth` failed to load with `Error [ERR_REQUIRE_ESM]: require() of ES Module .../jose/dist/webapi/index.js from .../jwks-rsa/src/utils.js not supported`.
+  `firebase-admin@14.5.1` pulls `jwks-rsa@4.1.0`, which bumped its `jose` dependency to `^6.1.3` (pure ESM).
+  Because Next.js marks `firebase-admin` as an external package (`serverExternalPackages`), Turbopack's SSR
+  runtime delegates to Node.js `require('firebase-admin/auth')`, which executes `jwks-rsa`'s synchronous
+  `const jose = require('jose')`. Adding `"overrides": { "jose": "^4.15.9" }` forces `jwks-rsa` to load `jose` v4,
+  which provides the exact CJS entrypoints (`importJWK`, `exportSPKI`, `decodeJwt`, `decodeProtectedHeader`)
+  without `ERR_REQUIRE_ESM`. Adding `"engines": { "node": ">=22.0.0" }` instructs Vercel to build and run on
+  Node 22+.
+  Alternatives rejected: downgrading `firebase-admin` to v12 (loses current SDK fixes), waiting for upstream
+  `jwks-rsa` async redesign.
 
 ## Change Log
 
@@ -352,6 +364,14 @@ Newest last.
   anthropic src` returns nothing; `.env.local` exposes `DEEPSEEK_*` keys with the API key
   blank until the user pastes it. Then `npx tsc --noEmit`, `npm run lint`, `npm test`
   (26/26) and `npm run build` are green.
+
+- **2026-11-16 — Fix Vercel runtime ERR_REQUIRE_ESM in firebase-admin/auth.**
+  Files: `package.json`, `package-lock.json`, `PROJECT_CONTEXT.md`.
+  Why: `firebase-admin/auth` failed to load in Vercel SSR runtime due to `jwks-rsa` attempting synchronous
+  `require()` on pure-ESM `jose@6`.
+  What: Added `overrides: { "jose": "^4.15.9" }` and `engines: { "node": ">=22.0.0" }` to `package.json`.
+  Verify: `npm ls jose` confirms `jose@4.15.9 overridden`; `node -e "require('firebase-admin/auth')"` succeeds
+  synchronously; `npx tsc --noEmit`, `npm test` (26/26), and `npm run build` all pass green.
 
 ## Known Issues
 

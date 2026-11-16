@@ -258,7 +258,7 @@ Append-only. Newest last.
   (Phase 3). Rejected: keeping the Anthropic SDK pointed at a DeepSeek gateway (an extra
   moving part with no benefit); a hand-rolled `fetch` client (DeepSeek documents the
   official OpenAI SDK for Node and we get retries/timeouts for free).
-- **2026-11-16 — `jose` pinned to `^4.15.9` via npm overrides and `engines.node` pinned to `>=22.0.0`.**
+- **2026-11-16 — `jose` pinned to `^4.15.9` via npm overrides and `engines.node` pinned to `22.x`.**
   On Vercel (or any serverless environment where Node executes CommonJS or runs < 20.19.0),
   `firebase-admin/auth` failed to load with `Error [ERR_REQUIRE_ESM]: require() of ES Module .../jose/dist/webapi/index.js from .../jwks-rsa/src/utils.js not supported`.
   `firebase-admin@14.5.1` pulls `jwks-rsa@4.1.0`, which bumped its `jose` dependency to `^6.1.3` (pure ESM).
@@ -266,10 +266,15 @@ Append-only. Newest last.
   runtime delegates to Node.js `require('firebase-admin/auth')`, which executes `jwks-rsa`'s synchronous
   `const jose = require('jose')`. Adding `"overrides": { "jose": "^4.15.9" }` forces `jwks-rsa` to load `jose` v4,
   which provides the exact CJS entrypoints (`importJWK`, `exportSPKI`, `decodeJwt`, `decodeProtectedHeader`)
-  without `ERR_REQUIRE_ESM`. Adding `"engines": { "node": ">=22.0.0" }` instructs Vercel to build and run on
-  Node 22+.
+  without `ERR_REQUIRE_ESM`. `engines.node` is pinned to `"22.x"` (rather than `">=22.0.0"`) to comply with
+  Vercel's convention preventing unintended auto-upgrades when new major Node versions release.
   Alternatives rejected: downgrading `firebase-admin` to v12 (loses current SDK fixes), waiting for upstream
   `jwks-rsa` async redesign.
+- **2026-11-16 — `allowScripts` in `package.json` and `.npmrc` loglevel configured.**
+  Modern npm (v11+) warns about unreviewed install/lifecycle scripts (`@firebase/util` and `protobufjs`) and
+  unknown injected environment variables (`npm_config_cache_dir` from Vercel's build runner). Added
+  `allowScripts` in `package.json` to explicitly approve `@firebase/util@1.15.3` and `protobufjs@7.6.6`, and
+  added `.npmrc` with `loglevel=error` to suppress advisory warnings from Vercel-injected environment flags.
 
 ## Change Log
 
@@ -365,13 +370,14 @@ Newest last.
   blank until the user pastes it. Then `npx tsc --noEmit`, `npm run lint`, `npm test`
   (26/26) and `npm run build` are green.
 
-- **2026-11-16 — Fix Vercel runtime ERR_REQUIRE_ESM in firebase-admin/auth.**
-  Files: `package.json`, `package-lock.json`, `PROJECT_CONTEXT.md`.
-  Why: `firebase-admin/auth` failed to load in Vercel SSR runtime due to `jwks-rsa` attempting synchronous
-  `require()` on pure-ESM `jose@6`.
-  What: Added `overrides: { "jose": "^4.15.9" }` and `engines: { "node": ">=22.0.0" }` to `package.json`.
-  Verify: `npm ls jose` confirms `jose@4.15.9 overridden`; `node -e "require('firebase-admin/auth')"` succeeds
-  synchronously; `npx tsc --noEmit`, `npm test` (26/26), and `npm run build` all pass green.
+- **2026-11-16 — Fix Vercel deployment warnings (engines, install-scripts, cache-dir).**
+  Files: `package.json`, `.npmrc`, `PROJECT_CONTEXT.md`.
+  Why: Vercel warned about unpinned Node major auto-upgrades (`node >=22.0.0`), npm 11+ warned about
+  unreviewed lifecycle scripts (`@firebase/util` and `protobufjs`), and warned about Vercel's injected `cache-dir` env config.
+  What: Changed `engines.node` to `"22.x"`; added `allowScripts` approving `@firebase/util@1.15.3` and `protobufjs@7.6.6`;
+  added `.npmrc` with `loglevel=error`.
+  Verify: `npx -y npm@11 install-scripts ls` confirms zero unreviewed install scripts; `npm_config_cache_dir=/tmp npx -y npm@11 help`
+  emits no warning; `npx tsc --noEmit`, `npm test` (26/26), and `npm run build` all pass green.
 
 ## Known Issues
 

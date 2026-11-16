@@ -1,9 +1,6 @@
-npm warn deprecated @opentelemetry/sdk-trace-base@2.9.0: Use @opentelemetry/sdk-trace package
-npm warn deprecated @opentelemetry/sdk-trace-base@2.9.0: Use @opentelemetry/sdk-trace package
-npm warn deprecated @opentelemetry/sdk-trace-web@2.9.0: Use @opentelemetry/sdk-trace package
-npm warn deprecated @opentelemetry/sdk-trace-web@2.9.0: Use @opentelemetry/sdk-trace package
-npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+Warning: Detected "engines": { "node": ">=22.0.0" } in your `package.json` that will automatically upgrade when a new major Node.js Version is released. Learn More: https://vercel.link/node-version
 
+npm warn Unknown env config "cache-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
 
 npm warn install-scripts 2 packages have install scripts not yet covered by allowScripts:
 npm warn install-scripts   @firebase/util@1.15.3 (postinstall: node ./postinstall.js)
@@ -12,3 +9,4 @@ npm warn install-scripts
 npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
 
 npm warn Unknown env config "cache-dir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+

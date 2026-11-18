@@ -83,7 +83,7 @@ Dependency rule: any NEW dependency requires a dated entry in `PROJECT_CONTEXT.m
   server actions: createProject, completeLesson, completeDebugSession
   │
   ├─ GitHub API (tree + raw contents, optional GITHUB_TOKEN)
-  ├─ Anthropic API (3–5 calls per analysis, zod-validated JSON)
+  ├─ DeepSeek API (3–5 calls per analysis, zod-validated JSON)
   └─ firebase-admin → Firestore
 [Firestore]
   users, projects, projects/{pid}/snapshot, projects/{pid}/guidebook,

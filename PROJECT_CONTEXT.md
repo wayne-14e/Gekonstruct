@@ -33,10 +33,20 @@ deterministically, then writes `snapshot/main`, the stack, stage `ingested` and 
 snapshot stats, file list and detected stack. Failures store `failed:ingested` +
 `stageError` and the UI offers a retry.
 
-LLM access is pointed at DeepSeek's OpenAI-compatible API: the `openai` SDK with
+LLM access is DeepSeek's OpenAI-compatible API: the `openai` SDK with
 `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL=deepseek-flash` (DeepSeek-V4.1-Flash) and
-`DEEPSEEK_BASE_URL=https://api.deepseek.com`. No model call is written yet — the architecture
-stage is Phase 3.
+`DEEPSEEK_BASE_URL=https://api.deepseek.com`. Pipeline calls disable DeepSeek thinking mode
+for a predictable, temperature-honouring JSON answer inside the 60s stage budget. BLUEPRINT
+§3/§12 still name Anthropic; the 2026-11-13 DeepSeek decision below is authoritative and the
+user has updated §4's diagram to DeepSeek.
+
+**Architecture map — done (Phase 3).** `/projects/[id]` runs ingest → architecture
+sequentially behind one button. `/api/pipeline/architecture` builds a prompt from the stored
+snapshot + stack, asks DeepSeek for JSON, validates it with zod and against the real
+snapshot paths, then writes `guidebook/main` with provenance (`model`, `promptVersion`).
+One repair retry is allowed; a second failure stores `failed:architecture`. `/projects/[id]/overview`
+renders the summary, an outside-in layer accordion (native `<details>`, no client JS), the
+request flow, the concepts grid, GitHub-linked file chips and the optional mermaid source.
 
 Design system live (redesigned 2026-11-13): dark IDE surface (`#0b0f14`), Space Grotesk
 for all UI + display with JetBrains Mono for labels, file paths and code (no serif/italic
@@ -49,14 +59,18 @@ short subtitle, two CTAs, limits line) above a full-width sample-pipeline window
 mac-style red/yellow/green dots, followed by the pathways, how-it-works and closing CTA.
 Signed-in visitors are redirected to `/dashboard`; signing out returns them to `/`.
 
-Last verified: 2026-11-13 — `next build` green, `npx tsc --noEmit` green, `npm run lint`
-green, `npm test` green (26/26), dashboard + project pages rendered for a real session
-cookie, no console errors at 1440px or 390px. Live ingestion: `shadcn-ui/taxonomy`,
-`firebase/quickstart-js` and `vercel/next-learn` each kept 60 files with no excluded paths
-and no stored content over 12,000 chars; `octocat/Hello-World` failed with the friendly
-stack message; the 3-project cap disabled the form. Hero verified centred at 1440px and
-390px (h1 centre = viewport centre, no horizontal scroll); signed-in `/` and `/login`
-redirect to `/dashboard`; sign-out lands on `/` with the session cookie cleared.
+Last verified: 2026-11-18 — `next build` green, `npx tsc --noEmit` green, `npm run lint`
+green, `npm test` green (44/44). Live architecture run: `wayne-14e/Verdict`
+(36 files / 131,674 chars) produced a guidebook with 6 layers, 7 flow steps, 11 concepts
+and a mermaid source in 2 attempts / ~41s; every file chip and every path cited in prose
+exists in the snapshot. `/projects/[id]` showed “Your map is ready”; `/overview` rendered
+at 1440px and 390px (no horizontal scroll, 7 `<details>`, zero console/page errors);
+signed-out `/overview` 307s to `/login`; the architecture route returns 401 without a
+cookie, 404 for another owner's project and 400 for an empty body. Previously verified
+2026-11-13: live ingestion of `shadcn-ui/taxonomy`, `firebase/quickstart-js` and
+`vercel/next-learn`; `octocat/Hello-World` failed with the friendly stack message; the
+3-project cap disabled the form; hero centred at 1440px and 390px; signed-in `/` and
+`/login` redirect to `/dashboard`; sign-out lands on `/` with the session cookie cleared.
 
 ### Build plan — executing phase by phase
 
@@ -65,7 +79,7 @@ redirect to `/dashboard`; sign-out lands on `/` with the session cookie cleared.
 | 0 | Bootstrap | Scaffold, design tokens, brand components, Firebase wiring, env, this doc | `next build` green; landing shell renders |
 | 1 | M1 Auth & shell ✅ | Client Firebase auth + Google sign-in, session cookie via server action, `users/{uid}` bootstrap, landing, `/login`, `/dashboard` empty state, app header | Sign in → `/dashboard` shows empty state; signed-out `/dashboard` redirects to `/login` |
 | 2 | M2 Ingestion ✅ | `createProject` (3-project cap), `/api/pipeline/ingest`, GitHub tree+contents, ingest filters/budget (unit-tested), stack detection (unit-tested), `snapshot/main`, `/projects/[id]` runner, project cards with stage badges | 3 real public repos ingest; `node_modules` never in snapshot; >300 KB skipped; unrecognizable stack fails with message |
-| 3 | M3 Architecture | `/api/pipeline/architecture`, prompts module, zod schemas, repair retry, `guidebook` doc, `/overview` page (layers, data flow, concepts, file chips, optional mermaid) | guidebook passes zod on a real repo; overview renders real layers |
+| 3 | M3 Architecture ✅ | `/api/pipeline/architecture`, prompts module, zod schemas, repair retry, `guidebook` doc, `/overview` page (layers, data flow, concepts, file chips, optional mermaid) | guidebook passes zod on a real repo; overview renders real layers |
 | 4 | M4 Foundations | `/api/pipeline/lessons1` + `lessons2`, `/learn` list + lesson page, shiki code blocks, `Quiz`, `completeLesson`, XP transaction, progress state | pass quiz → XP in `users/{uid}`; fail → no XP, retry allowed |
 | 5 | M5 Debug | `/api/debug/run`, symptom form + session list, session page (causes/fix steps/whyItWorks/quiz), `completeDebugSession` | real symptom → evidence files that exist in the snapshot |
 | 6 | M6 Polish | Badges, analytics events, `PipelineRunner` retry UX, error/empty states everywhere, rules deployed, Geko polish | full journey with zero console errors |
@@ -79,13 +93,14 @@ redirect to `/dashboard`; sign-out lands on `/` with the session cookie cleared.
   POST server action signIn(idToken) → httpOnly session cookie (admin SDK)
   createProject(repoUrl) server action → projects/{pid} (stage "created")
   POST /api/pipeline/ingest → snapshot + stack (stage "ingested")
-  router.refresh() after a stage → server component re-renders progress
-  POST /api/pipeline/{architecture|lessons1|lessons2}, /api/debug/run (planned)
+  POST /api/pipeline/architecture → guidebook/main (stage "architecture")
+  router.refresh() after each stage → server component re-renders progress
+  POST /api/pipeline/{lessons1|lessons2}, /api/debug/run (planned)
 [Next.js server]
   server actions: signIn, signOut, createProject, completeLesson, completeDebugSession
   route handlers: pipeline stages (idempotent, ≤60s), debug
-  lib: firebase/client (browser), firebase/admin (server), github, projects,
-       pipeline/{ingest,stack,ingest-runner}, prompts, schemas
+  lib: firebase/client (browser), firebase/admin (server), github, projects, llm,
+       prompts, domain/{project,architecture}, pipeline/{ingest,stack,architecture}
 [Firestore]
   users/{uid}
   projects/{pid}
@@ -95,15 +110,16 @@ redirect to `/dashboard`; sign-out lands on `/` with the session cookie cleared.
 
 Routes as built: `/` (landing, signed-out only — a signed-in visitor is redirected to
 `/dashboard`), `/login`, `/dashboard` (guarded in `src/app/(app)/layout.tsx`),
-`/projects/[id]` (ingest runner + snapshot), `/api/pipeline/ingest` (POST),
-`not-found`, `error`.
-Planned: `/projects/[id]/{overview,learn,debug}` (Phases 3–5), `/api/pipeline/{architecture,
-lessons1,lessons2}`, `/api/debug/run`.
+`/projects/[id]` (pipeline runner + map-ready or snapshot panel),
+`/projects/[id]/overview` (architecture pathway), `/api/pipeline/ingest` (POST),
+`/api/pipeline/architecture` (POST), `not-found`, `error`.
+Planned: `/projects/[id]/{learn,debug}`, `/api/pipeline/{lessons1,lessons2}`, `/api/debug/run`.
 
 Key modules as built: `src/lib/firebase/{config,client,admin}.ts`, `src/lib/auth/{session,users}.ts`,
-`src/lib/domain/{user,project}.ts`, `src/lib/pipeline/{ingest,stack,ingest-runner}.ts`,
-`src/lib/github.ts`, `src/lib/projects.ts`, `src/lib/nav.ts`,
-`src/app/actions/{auth,projects}.ts`, `src/components/{brand,auth,app,projects}/*`,
+`src/lib/domain/{user,project,architecture}.ts`, `src/lib/pipeline/{ingest,stack,ingest-runner,
+architecture,architecture-runner}.ts`, `src/lib/{github,projects,llm,prompts}.ts`, `src/lib/nav.ts`,
+`src/app/actions/{auth,projects}.ts`,
+`src/components/{brand,auth,app,projects}/*` (incl. `guidebook-parts.tsx`),
 `scripts/dev-session.mjs` (dev-only cookie minter).
 
 Auth boundary: browser keeps the Firebase client session (for realtime Firestore reads);
@@ -129,10 +145,18 @@ As built through Phase 2 (all timestamps are epoch **milliseconds**, not Firesto
 - `projects/{pid}/snapshot/main` — `{ files: [{ path, size, content }], fetchedAt, totalChars,
   truncated: string[] }`. **Deviation:** the blueprint writes `projects/{pid}/snapshot`; Firestore
   needs a document id, so singleton docs use `main` (same for `guidebook/main` later).
-- `projects/{pid}/events/{eid}` — `{ type, at, meta }`. `project_created` and
-  `stage_completed` are written today.
-- `projects/{pid}/{guidebook,lessons/{lid},debugSessions/{sid},progress/{uid}}` — not yet
-  written (Phases 3–6).
+- `projects/{pid}/events/{eid}` — `{ type, at, meta }`. `project_created`, `stage_completed`
+  (ingest and architecture) and `analysis_ready` are written today.
+- `projects/{pid}/guidebook/main` — the architecture map, validated by `GuidebookDocSchema`:
+  `{ summary: { whatItDoes, plainSummary, gekoIntro },
+     architecture: { layers: [{ id, name, purpose, files[], plainExplanation }],
+                     dataFlow: [{ from, to, whatHappens }], mermaid: string|null },
+     concepts: [{ id, term, plainDefinition, files[], whyItMatters }],
+     analyzedAt, model, promptVersion }`.
+  **Deviation:** `model` and `promptVersion` are extra provenance fields (see Decisions Log).
+  `files` always contain real snapshot paths; ids are slugs and unique per list.
+- `projects/{pid}/{lessons/{lid},debugSessions/{sid},progress/{uid}}` — not yet
+  written (Phases 4–6).
 
 ## Env & Secrets
 
@@ -143,7 +167,7 @@ Names only; values live in `.env.local` (gitignored) and the host dashboard.
 | `NEXT_PUBLIC_APP_URL` | metadata base, auth redirect sanity |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` / `_AUTH_DOMAIN` / `_PROJECT_ID` / `_STORAGE_BUCKET` / `_MESSAGING_SENDER_ID` / `_APP_ID` | browser Firebase config |
 | `FIREBASE_SERVICE_ACCOUNT` | server only — firebase-admin credential, one-line JSON |
-| `DEEPSEEK_API_KEY` | server only — pipeline + debug (Phase 3+), sent to `https://api.deepseek.com` |
+| `DEEPSEEK_API_KEY` | server only — `src/lib/llm.ts` (architecture stage today; lessons/debug later), sent to `https://api.deepseek.com` |
 | `DEEPSEEK_MODEL` | optional model override, default `deepseek-flash` (DeepSeek-V4.1-Flash) |
 | `DEEPSEEK_BASE_URL` | optional endpoint override, default `https://api.deepseek.com` |
 | `GITHUB_TOKEN` | optional, raises GitHub anonymous limit 60 req/h (used by `src/lib/github.ts`) |
@@ -153,8 +177,14 @@ the same JSON on one line for the app.
 
 ## Prompts
 
-None yet (Phase 3+). `src/lib/prompts.ts` arrives in Phase 3 (architecture prompt v1), Phase 4
-(lessons v1), Phase 5 (debug v1). Every prompt change = version bump + Decisions Log entry.
+Prompts live in `src/lib/prompts.ts` only. Version constant + last change:
+
+| Version | Stage | Last changed | Notes |
+|---|---|---|---|
+| `architecture-v1` | architecture | 2026-11-18 | System rules (plain English, real paths, JSON only, Geko voice) + user prompt built from stack, the exact allowed path list and the snapshot contents (150k-char budget; omitted files are named). Demands 3–7 layers, 4–8 flow steps and 5–12 concepts. |
+
+`lessons-v1` (Phase 4) and `debug-v1` (Phase 5) are not written yet. Every prompt change =
+version bump + this table + a Decisions Log entry.
 
 ## Decisions Log
 
@@ -275,115 +305,119 @@ Append-only. Newest last.
   unknown injected environment variables (`npm_config_cache_dir` from Vercel's build runner). Added
   `allowScripts` in `package.json` to explicitly approve `@firebase/util@1.15.3` and `protobufjs@7.6.6`, and
   added `.npmrc` with `loglevel=error` to suppress advisory warnings from Vercel-injected environment flags.
+- **2026-11-18 — DeepSeek thinking mode is disabled for pipeline calls.** `deepseek-flash`
+  enables thinking by default (64K output budget); reasoning tokens run before the JSON and
+  made one architecture attempt ~20s with unpredictable truncation at an 8K cap. Pipeline
+  calls now send `thinking: { type: "disabled" }` with `max_tokens: 8192`, which honours
+  BLUEPRINT §6's `temperature 0.2` and keeps a stage inside its 60s budget. Rejected: leaving
+  thinking on with a 32–64K cap (2× latency for a structured extraction task, and the
+  temperature setting would be ignored).
+- **2026-11-18 — Real-file check: strict on file chips, strict on invented prose paths,
+  soft on missing citations.** Every `files` entry must be a snapshot path; any backticked
+  path-like token in prose that does not exist is a hard validation error (one repair). A
+  layer/concept whose prose never cites a path is accepted with a `softWarning`, because it
+  still ships validated file chips. Rejected: hard-failing every item without a prose
+  citation — the model missed it often enough that otherwise-good maps failed twice, while
+  the chips already guarantee the UI points at real files.
+- **2026-11-18 — `guidebook/main` carries `model` and `promptVersion`.** BLUEPRINT §7 says
+  `{ ...ArchitectureSchema, analyzedAt }`; the extra fields make it possible to tell which
+  model/prompt produced a stored map without reading server logs. Rejected: a separate
+  provenance collection (more reads for a field pair nobody queries).
+- **2026-11-18 — Overview uses native `<details>` instead of the Radix accordion.** The whole
+  architecture page stays a server component with zero client JS, and native disclosure is
+  keyboard/screen-reader complete. Rejected: importing `components/ui/accordion` (client
+  island) for a read-only reveal.
+- **2026-11-18 — Mermaid is stored and shown as source, not rendered.** The model may return a
+  `flowchart LR` string; the overview renders it inside a collapsed `<pre>`. No `mermaid`
+  dependency was added in M3 because the layer and data-flow sections already carry the
+  explanation and Mermaid is optional polish (BLUEPRINT §9). Rejected: adding Mermaid now
+  (large client bundle, new dependency, no validation benefit).
+- **2026-11-18 — Architecture prompt budget is 150,000 chars of file contents.** The ingest
+  snapshot is already capped at 60 files / 150k chars, so in practice every kept file is sent.
+  If a snapshot is larger, files are included in stored order until the cap and the prompt
+  names the omissions so the model cannot pretend it read them.
 
 ## Change Log
 
 Newest last.
 
-- **2026-11-13 — Phase 0: scaffold + design system + Firebase wiring.**
-  Files: `package.json`, `src/app/globals.css`, `src/app/layout.tsx`,
-  `src/components/brand/{geko-mark,geko-avatar,logo,speech-bubble}.tsx`, `src/app/icon.svg`,
-  `firebase.json`, `.firebaserc`, `firestore.rules`, `firestore.indexes.json`, `.env.example`.
-  Verify: `npm run build` → visit `/`; the Geko badge + wordmark render; `firebase projects:list`
-  shows `gekonstruct-14174` active.
-  Why: everything later needs tokens, brand components and a working Firebase target.
+- **2026-11-18 — Phase 3: architecture stage, guidebook doc, overview page.**
+  Files: `src/lib/domain/architecture.ts`, `src/lib/prompts.ts`, `src/lib/llm.ts`,
+  `src/lib/pipeline/{architecture,architecture-runner}.ts` (+ `architecture.test.ts`),
+  `src/lib/projects.ts`, `src/app/api/pipeline/architecture/route.ts`,
+  `src/app/(app)/projects/[id]/{page.tsx,overview/page.tsx}`,
+  `src/components/projects/{pipeline-runner,guidebook-parts}.tsx`, `PROJECT_CONTEXT.md`.
+  Why: the Architecture pathway is the first thing a vibe-coder needs — a plain-English map of
+  a repo they don't fully understand — and every later lesson reuses this guidebook.
+  What: `architecture-v1` prompt (stack + exact path list + snapshot contents, capped at 150k
+  chars); `requestStructured` calls DeepSeek in JSON mode with thinking disabled, parses the
+  object, validates it with zod + snapshot-path rules, and allows one repair retry before the
+  stage fails. File refs are filtered to real snapshot paths, invented prose paths are rejected,
+  counts are clamped to 3–7 layers / 4–8 steps / 5–12 concepts, ids are slugged and de-duped,
+  and mermaid is kept only if it is a real `flowchart`/`graph` source. The route stores
+  `guidebook/main` (+ `model`, `promptVersion`, `analyzedAt`), moves the project to
+  `architecture`, and writes `stage_completed` + `analysis_ready` events in one batch.
+  `PipelineRunner` now runs ingest → architecture sequentially and derives the next step from
+  `stage` + `hasSnapshot`; the project page shows a map-ready panel with a CTA; `/overview`
+  renders the Geko intro, summary, layer `<details>` accordion, numbered request flow, concept
+  grid, GitHub-linked file chips and the diagram source. Error/empty states cover missing maps,
+  failed stages, missing snapshots and another user's project.
+  Verify: `npm run dev` → sign in → open a project that has been ingested → “Build the
+  architecture map” → both steps finish and the page shows “Your map is ready” → “Open the
+  architecture map” → layers expand, flow steps cite files, chips link to
+  `github.com/{owner}/{repo}/blob/HEAD/{path}`, and the diagram source expands. Resize to 390px:
+  no horizontal scroll. Check Firestore `projects/{pid}/guidebook/main` has real paths only and
+  `projects/{pid}.stage === "architecture"`. Re-POST the route to confirm it overwrites its own
+  output. Signed-out `/overview` redirects to `/login`; the route returns 401 without a cookie,
+  404 for another owner and 409 after a later stage has run.
+  Verified 2026-11-18 on `wayne-14e/Verdict` (36 files / 131,674 chars): 6 layers, 7 flow steps,
+  11 concepts, mermaid source, 2 attempts, ~41s; `/overview` at 1440px and 390px with zero
+  console errors; `tsc`, lint, 44/44 tests and `next build` green.
 
-- **2026-11-13 — Phase 1: auth, session cookie, landing, dashboard, shell.**
-  Files: `src/lib/firebase/{config,client,admin}.ts`, `src/lib/auth/{session,users}.ts`,
-  `src/lib/domain/user.ts`, `src/lib/nav.ts` (+ `.test.ts`), `src/app/actions/auth.ts`,
-  `src/components/auth/google-sign-in-button.tsx`, `src/components/app/{app-header,user-menu,
-  site-footer,xp-badge}.tsx`, `src/app/{page,not-found,error}.tsx`,
-  `src/app/(auth)/login/page.tsx`, `src/app/(app)/layout.tsx`,
-  `src/app/(app)/dashboard/{page,loading}.tsx`, `src/components/ui/*` (sizing overrides),
-  `vitest.config.mts`, `scripts/{_admin,dev-session}.mjs`, `firestore.rules` (deployed).
-  Why: nothing else can ship without identity + a shell.
-  Verify by hand: `npm run dev` → open `http://localhost:3000` → hero renders, mark animates,
-  no horizontal scroll at 390px → click “Sign in with Google” → consent popup → land on
-  `/dashboard` with `0 XP` and the empty state → open the avatar menu → “Sign out” → back to
-  `/` → visit `/dashboard` while signed out → redirected to `/login?next=…`.
-  Verify without Google: `node scripts/dev-session.mjs qa-tester > /tmp/c.json`, then use the
-  `sessionCookie` as the `geko_session` cookie (Playwright does this in the QA script).
+## Change Log Archive
 
-- **2026-11-13 — Visual redesign: dark JetBrains × Duolingo system (no phase advance).**
-  Files: `src/app/globals.css` (tokens, `label-mono`, `skin-gradient`, `path-chip`,
-  `field-grid`, rise/drift/pop keyframes), `src/app/layout.tsx` (Space Grotesk + JetBrains
-  Mono, dark viewport), `src/components/ui/{button,card,input,textarea,badge,skeleton,
-  sonner}.tsx`, `src/components/brand/{geko-avatar,logo,speech-bubble}.tsx`,
-  `src/components/app/{app-header,site-footer,xp-badge}.tsx`, `src/app/page.tsx` (landing
-  rewrite with terminal pipeline card), `src/app/(auth)/login/page.tsx`,
-  `src/app/(app)/dashboard/page.tsx`, `src/app/{not-found,error}.tsx`,
-  `package.json` (drop `next-themes`).
-  Why: user asked for a darker developer-tool look in one pass, without moving to Phase 2.
-  Verify: `npm run dev` → `/` at 1440px shows the full-width "You vibe-coded it. / Now own
-  it." hero, pathway cards and 2×2 steps, closing CTA; `/login` shows the account card +
-  Geko bubble; sign in (or `scripts/dev-session.mjs`) → `/dashboard` shows the XP chip and
-  empty state; `/definitely-not-a-page` shows the branded 404. Check 390px for no horizontal
-  scroll. `npx tsc --noEmit`, `npm run lint`, `npm run test` (3/3) and `npm run build` green.
+Older entries, one line each (full detail in git history):
 
-- **2026-11-13 — Phase 2: ingestion, stack detection, project cards, runner.**
-  Files: `src/lib/domain/project.ts`, `src/lib/pipeline/{ingest,stack,ingest-runner}.ts`
-  (+ `.test.ts` for the pure modules), `src/lib/github.ts`, `src/lib/projects.ts`,
-  `src/app/actions/projects.ts`, `src/app/api/pipeline/ingest/route.ts`,
-  `src/components/projects/{connect-repo-form,pipeline-runner,stage-badge}.tsx`,
-  `src/app/(app)/dashboard/{page,loading}.tsx`, `src/app/(app)/projects/[id]/page.tsx`.
-  Why: ingestion is the gate every pathway sits behind; nothing else can ship without a
-  real snapshot and a known stack.
-  Verify: `npm run dev` → sign in → `/dashboard` → paste
-  `https://github.com/shadcn-ui/taxonomy` → “Connect repo” → project page → “Start
-  ingestion” → after ~10 s the panel shows 60 files, the detected stack and the file list.
-  Connect two more repos; the form disables at 3/3. A README-only repo
-  (`octocat/Hello-World`) fails with “We couldn't recognize the stack…” and a retry button.
-  Check `snapshot/main` in Firestore: no `node_modules`, lockfiles, `.env*`, binaries or
-  stored content over 12,000 chars.
-  Verified 2026-11-13 with Playwright: taxonomy 60 files / 126.4k chars / 1 truncated;
-  quickstart-js 60 / 146.0k / 1; next-learn 60 / 54.7k / 0; Hello-World failed with the
-  stack message; no console errors desktop or 390px; `tsc`, lint, 26/26 tests and build green.
-
-- **2026-11-13 — Landing hero recentred, sample window enlarged, header nav centred.**
-  Files: `src/app/page.tsx`, `src/components/app/app-header.tsx`.
-  Why: the hero read as a left-aligned marketing split; the user wanted one centred column
-  with the preview as the focal point, and the header nav visually centred.
-  What: badge → h1 → shortened subtitle → CTA row → limits line, all centred with the h1
-  exactly on the viewport centre; the sample pipeline window is now full width beneath,
-  split into command/pipeline and Geko commentary, with mac-style red/yellow/green dots;
-  `AppHeader` uses a `1fr auto 1fr` grid at `sm+` so nav links sit at the true centre while
-  the logo and account stay at the edges (flex fallback keeps Sign in right on mobile).
-  Signed-in visitors are redirected from `/` to `/dashboard`; sign-out returns to `/`.
-  Verify: sign out, open `/` at 1440px — h1 is centred, the only horizontal list is above
-  the window, the window spans the container, dots are red/yellow/green. Sign in, visit
-  `/` — you land on `/dashboard`; sign out — you land on `/` and `/dashboard` bounces to
-  `/login`. Keyboard-check the header nav. Verified 2026-11-13 with Playwright at 1440px and
-  390px: h1 boxes centred (x+w/2 = 720 and 195), no horizontal scroll, no console errors,
-  signed-in `/` and `/login` both 307 to `/dashboard`, sign-out clears `geko_session`.
-  `npx tsc --noEmit`, `npm run lint`, `npm test` (26/26) and `npm run build` green.
-
-- **2026-11-13 — LLM credentials/config moved from Anthropic to DeepSeek.**
-  Files: `package.json`, `package-lock.json`, `.env.example` (and the local, gitignored
-  `.env.local`), `PROJECT_CONTEXT.md`. `BLUEPRINT.md` intentionally unchanged.
-  Why: the user will use a DeepSeek API key with DeepSeek-V4.1-Flash.
-  What: `@anthropic-ai/sdk` out, `openai` in (DeepSeek's documented Node client);
-  `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` became `DEEPSEEK_API_KEY` /
-  `DEEPSEEK_MODEL=deepseek-flash` / optional `DEEPSEEK_BASE_URL=https://api.deepseek.com`.
-  No model call was added — Phase 3 is still not started.
-  Verify: `npm ls openai` resolves and `npm ls @anthropic-ai/sdk` is empty; `grep -ri
-  anthropic src` returns nothing; `.env.local` exposes `DEEPSEEK_*` keys with the API key
-  blank until the user pastes it. Then `npx tsc --noEmit`, `npm run lint`, `npm test`
-  (26/26) and `npm run build` are green.
-
-- **2026-11-16 — Fix Vercel deployment warnings (engines, install-scripts, cache-dir).**
-  Files: `package.json`, `.npmrc`, `PROJECT_CONTEXT.md`.
-  Why: Vercel warned about unpinned Node major auto-upgrades (`node >=22.0.0`), npm 11+ warned about
-  unreviewed lifecycle scripts (`@firebase/util` and `protobufjs`), and warned about Vercel's injected `cache-dir` env config.
-  What: Changed `engines.node` to `"22.x"`; added `allowScripts` approving `@firebase/util@1.15.3` and `protobufjs@7.6.6`;
-  added `.npmrc` with `loglevel=error`.
-  Verify: `npx -y npm@11 install-scripts ls` confirms zero unreviewed install scripts; `npm_config_cache_dir=/tmp npx -y npm@11 help`
-  emits no warning; `npx tsc --noEmit`, `npm test` (26/26), and `npm run build` all pass green.
+- **2026-11-13 — Phase 0:** scaffold, design tokens, brand components, Firebase wiring and `env`.
+  Verify: `npm run build` and `/` renders the Geko badge + wordmark.
+- **2026-11-13 — Phase 1:** Google sign-in → httpOnly session cookie, `users/{uid}` bootstrap,
+  landing, `/login`, guarded dashboard and header. Verify: sign in → empty dashboard; signed-out
+  `/dashboard` → `/login?next=…`.
+- **2026-11-13 — Visual redesign:** dark “JetBrains × Duolingo” system, `next-themes` removed.
+  Verify: landing/login/dashboard/404 at 1440px and 390px.
+- **2026-11-13 — Phase 2:** ingestion, stack detection, project cards and the runner; verified on
+  `shadcn-ui/taxonomy`, `firebase/quickstart-js` and `vercel/next-learn`; Hello-World failed with
+  the stack message.
+- **2026-11-13 — Landing hero recentred:** full-width sample window, centred header nav, signed-in
+  `/` redirects to `/dashboard`.
+- **2026-11-13 — LLM config Anthropic → DeepSeek:** `openai` SDK and `DEEPSEEK_*` env (no call yet).
+- **2026-11-16 — Vercel warnings:** `engines.node` pinned to `22.x`, `allowScripts`, `.npmrc`
+  `loglevel=error`.
 
 ## Known Issues
 
-- **`DEEPSEEK_API_KEY` is still blank.** Phase 3 (the architecture stage) cannot make a
-  model call until the user pastes the DeepSeek key into `.env.local`. The SDK and env
-  names are wired; no LLM request exists yet.
+- **FIXED 2026-11-18 — `DEEPSEEK_API_KEY` was blank.** The key is configured and the
+  architecture stage makes a real model call (see Change Log 2026-11-18).
+- **Architecture latency sits close to the 60s stage cap on large snapshots.** A first pass
+  on a 131,674-char snapshot took ~20s; the repair pass pushed the stage to ~41s. Repos near
+  the 150k ingest cap can exceed `maxDuration = 60` in production. Thinking mode is already
+  disabled, output is capped at 8K tokens and the repair reuses the provider's prompt cache,
+  but this needs a smaller prompt budget or a stage split if it bites.
+- **A failed architecture attempt spends another model call.** No intermediate artifact is
+  cached, so retrying the stage re-sends the whole snapshot prompt.
+- **Prose path auditing only inspects backticked tokens.** A path written without backticks is
+  not checked; every path rendered as a chip *is* validated against the snapshot, and the
+  prompt asks for backticks.
+- **Repository contents are untrusted prompt input.** A README or comment can contain
+  instructions aimed at the model. The stage only reads and explains files (no tools, no
+  writes) and the output is zod-checked, but a crafted repo can still skew the prose. Treat a
+  connected repo as untrusted text when reviewing output quality.
+- **The overview fires no analytics yet.** `overview_section_viewed` and the `map-reader`
+  badge land with M6 instrumentation (BLUEPRINT §13).
+- **Mermaid is shown as source, not rendered.** The stored flowchart opens in a collapsed
+  `<pre>`; diagram rendering is Backlog polish.
+- **The guidebook is reachable only from the project page.** There is no project hub nav
+  (`Map / Learn / Debug`) until M6; `/overview` links back to the project.
 
 - **Google popup sign-in not yet verified in an automated browser** (needs an interactive
   Google account). The token→cookie→session path is verified with a minted session cookie;
@@ -399,13 +433,17 @@ Newest last.
   (`treeTruncated`) but does not surface it in the UI yet; selection still works on the
   entries that did arrive, so a truncated tree only means files are missing, never that the
   snapshot is invalid.
-- **The runner only executes the ingest stage.** `/projects/[id]` shows the three later steps
-  as disabled placeholders (Phases 3–5). Snapshot stats are read once per server render;
-  there is no realtime listener yet.
+- **FIXED 2026-11-18 — The runner only executed the ingest stage.** It now runs
+  ingest → architecture sequentially; lessons and debug remain disabled placeholders
+  (Phases 4–5).
+- **Stage progress still uses `router.refresh()`, not `onSnapshot`.** Snapshot and guidebook
+  stats are read once per server render; the realtime listener stays Backlog until more
+  stages need streaming progress.
 - **A project cannot be removed.** The 3-project cap counts every project, including ones
   stuck in `failed:*`, so a QA account that fails three times is locked out of connecting
   more repos. Removal/reconnect ships with the project settings entry (see Backlog).
-- Landing page copy describes pathways that are not yet clickable (Phases 3–5).
+- Landing page copy describes the lessons and debug pathways before they are clickable
+  (Phases 4–5); the architecture map is live.
 - **FIXED 2026-11-13 — Dashboard “Connect a repository” was disabled until Phase 2.**
   The connect form now creates a project and the project page runs ingestion.
 - **FIXED 2026-11-13 — No dark theme.** Superseded by the design reversal: the product is
@@ -424,3 +462,11 @@ Newest last.
   dialog plus cascade delete of `snapshot`, `events` and later `guidebook`/`lessons` docs).
 - Persist `treeTruncated` on the project (or in the snapshot doc) and show a “some files were
   not listed” hint in the snapshot panel.
+- **Render the stored mermaid flowchart** (dynamic import, silent fallback) once the map
+  content has been through tester validation.
+- **Project hub navigation** (`Map / Learn / Debug`) and the `map-reader` badge event, both
+  scheduled with M6.
+- **Reduce architecture prompt cost/latency** if testers connect very large repos: per-file
+  budget for prose-heavy files, or split the call into "layers" and "concepts".
+- **Cache the built prompt** (or the raw model answer) per snapshot so a failed repair does
+  not pay for the full input twice.

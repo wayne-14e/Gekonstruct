@@ -1,5 +1,6 @@
 import "server-only";
 
+import { GuidebookDocSchema, type GuidebookDoc } from "@/lib/domain/architecture";
 import {
   ProjectDocSchema,
   SnapshotDocSchema,
@@ -20,6 +21,11 @@ export function projectDocRef(projectId: string) {
  */
 export function snapshotDocRef(projectId: string) {
   return projectDocRef(projectId).collection("snapshot").doc("main");
+}
+
+/** Same singleton rule as the snapshot: `projects/{pid}/guidebook/main`. */
+export function guidebookDocRef(projectId: string) {
+  return projectDocRef(projectId).collection("guidebook").doc("main");
 }
 
 function toRecord(id: string, data: unknown): ProjectRecord | null {
@@ -54,5 +60,13 @@ export async function getSnapshot(projectId: string): Promise<SnapshotDoc | null
   if (!snap.exists) return null;
 
   const parsed = SnapshotDocSchema.safeParse(snap.data());
+  return parsed.success ? parsed.data : null;
+}
+
+export async function getGuidebook(projectId: string): Promise<GuidebookDoc | null> {
+  const snap = await guidebookDocRef(projectId).get();
+  if (!snap.exists) return null;
+
+  const parsed = GuidebookDocSchema.safeParse(snap.data());
   return parsed.success ? parsed.data : null;
 }

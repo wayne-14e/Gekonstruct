@@ -38,6 +38,8 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
   if (!guidebook) return <MapMissing project={project} />;
 
   const { summary, architecture, concepts } = guidebook;
+  const lessonsReady =
+    project.stage === "lessons1" || project.stage === "lessons2" || project.stage === "ready";
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-12">
@@ -255,16 +257,28 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
               You can now name the big pieces of your own project.
             </p>
             <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-              The Foundations lessons come next and walk these same files step by step.
+              {lessonsReady
+                ? "The Foundations lessons walk these same files one at a time, with quizzes."
+                : "The Foundations lessons will walk these same files one at a time."}
             </p>
           </div>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link href={`/projects/${project.id}`}>
-            Back to project
-            <ArrowRight aria-hidden="true" />
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {lessonsReady ? (
+            <Button asChild size="sm">
+              <Link href={`/projects/${project.id}/learn`}>
+                Start the lessons
+                <ArrowRight aria-hidden="true" />
+              </Link>
+            </Button>
+          ) : null}
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/projects/${project.id}`}>
+              Back to project
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
+        </div>
       </div>
     </div>
   );

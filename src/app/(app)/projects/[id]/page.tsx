@@ -1,7 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, ExternalLink, FileCode2, Map, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Check,
+  ExternalLink,
+  FileCode2,
+  Layers,
+  Map,
+  ShieldCheck,
+} from "lucide-react";
 import { GekoAvatar } from "@/components/brand/geko-avatar";
 import { XpBadge } from "@/components/app/xp-badge";
 import { PipelineRunner } from "@/components/projects/pipeline-runner";
@@ -10,7 +20,10 @@ import { Button } from "@/components/ui/button";
 import { getUserProfile } from "@/lib/auth/users";
 import { requireUser } from "@/lib/auth/session";
 import type { GuidebookDoc } from "@/lib/domain/architecture";
+import type { LessonDoc } from "@/lib/domain/lesson";
 import type { ProjectStage, SnapshotDoc, Stack } from "@/lib/domain/project";
+import { countPassedLessons, emptyProgressDoc, type ProgressDoc } from "@/lib/domain/progress";
+import { getLessons, getProgress } from "@/lib/lessons";
 import { stackChips } from "@/lib/pipeline/stack";
 import { getGuidebook, getProject, getSnapshot } from "@/lib/projects";
 
@@ -28,8 +41,6 @@ const STACK_LABELS: Array<[keyof Stack, string]> = [
   ["hosting", "Hosting"],
 ];
 
-const MAPPED_STAGES = new Set<ProjectStage>(["architecture", "lessons1", "lessons2", "ready"]);
-
 export default async function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireUser(`/projects/${id}`);
@@ -40,17 +51,25 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   if (!project) notFound();
 
-  const [snapshot, guidebook] = await Promise.all([
+  const [snapshot, guidebook, lessons, progress] = await Promise.all([
     getSnapshot(project.id),
     getGuidebook(project.id),
+    getLessons(project.id),
+    getProgress(project.id, user.uid),
   ]);
 
-  const mapped = MAPPED_STAGES.has(project.stage);
-  // A project that says it is mapped but has no guidebook is broken state, so send the
-  // runner back to the architecture step rather than showing an empty chapter.
-  const runnerNeeded = !mapped || (project.stage === "architecture" && guidebook === null);
+  const safeProgress: ProgressDoc = progress ?? emptyProgressDoc();
+  const passedCount = countPassedLessons(safeProgress, lessons);
+  // A project that has moved past a stage but is missing that stage's output is broken
+  // state, so send the runner back to the earliest missing step instead of showing an
+  // empty chapter.
+  const runnerNeeded = project.stage !== "ready" || guidebook === null || lessons.length === 0;
   const runnerStage: ProjectStage =
-    runnerNeeded && mapped ? "ingested" : project.stage;
+    runnerNeeded && project.stage === "ready"
+      ? guidebook === null
+        ? "ingested"
+        : "architecture"
+      : project.stage;
 
   const chips = project.stack ? stackChips(project.stack) : [];
 
@@ -105,9 +124,17 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
               stage={runnerStage}
               stageError={project.stageError}
               hasSnapshot={snapshot !== null}
+              hasGuidebook={guidebook !== null}
+              lessonCount={lessons.length}
             />
           ) : guidebook ? (
-            <MapReadyPanel projectId={project.id} guidebook={guidebook} snapshot={snapshot} />
+            <ReadyPanel
+              projectId={project.id}
+              guidebook={guidebook}
+              snapshot={snapshot}
+              lessons={lessons}
+              passedCount={passedCount}
+            />
           ) : (
             <div className="rounded-2xl border border-[#584211] bg-[#2b1f06] p-5 text-sm leading-relaxed text-[#ffd57a]">
               This project has moved past the architecture map but the guidebook is
@@ -161,33 +188,40 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   );
 }
 
-function MapReadyPanel({
+function ReadyPanel({
   projectId,
   guidebook,
   snapshot,
+  lessons,
+  passedCount,
 }: {
   projectId: string;
   guidebook: GuidebookDoc;
   snapshot: SnapshotDoc | null;
+  lessons: LessonDoc[];
+  passedCount: number;
 }) {
   const layerCount = guidebook.architecture.layers.length;
   const conceptCount = guidebook.concepts.length;
   const stepCount = guidebook.architecture.dataFlow.length;
+  const allPassed = lessons.length > 0 && passedCount === lessons.length;
+  const learnLabel =
+    passedCount === 0 ? "Start the lessons" : allPassed ? "Review the lessons" : "Continue learning";
 
   return (
     <section
-      aria-labelledby="map-heading"
+      aria-labelledby="ready-heading"
       className="rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-6"
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="label-mono">Architecture</p>
-          <h2 id="map-heading" className="mt-2 text-xl">
-            Your map is ready
+          <p className="label-mono">Guidebook</p>
+          <h2 id="ready-heading" className="mt-2 text-xl">
+            Your guidebook is ready
           </h2>
         </div>
         <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-[#1e5033] bg-[#0e2a1c] text-primary">
-          <Map className="size-[18px]" aria-hidden="true" />
+          <Layers className="size-[18px]" aria-hidden="true" />
         </span>
       </div>
 
@@ -197,23 +231,57 @@ function MapReadyPanel({
 
       <dl className="mt-5 grid grid-cols-3 gap-3">
         <Stat label="Layers" value={layerCount.toLocaleString()} />
-        <Stat label="Flow steps" value={stepCount.toLocaleString()} />
-        <Stat label="Concepts" value={conceptCount.toLocaleString()} />
+        <Stat label="Lessons" value={lessons.length.toLocaleString()} />
+        <Stat label="Passed" value={`${passedCount}/${lessons.length}`} />
       </dl>
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <Button asChild size="lg">
-          <Link href={`/projects/${projectId}/overview`}>
-            Open the architecture map
-            <ArrowRight aria-hidden="true" />
-          </Link>
-        </Button>
-        {snapshot ? (
-          <p className="font-mono text-[0.6875rem] tracking-[0.08em] text-muted-foreground uppercase">
-            {snapshot.files.length} files · {formatChars(snapshot.totalChars)} chars
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="flex flex-col rounded-xl border border-border bg-[#0e141b] p-4">
+          <div className="flex items-center gap-2">
+            <Map className="size-4 text-primary" aria-hidden="true" />
+            <p className="text-sm font-semibold text-foreground">Architecture map</p>
+          </div>
+          <p className="mt-1.5 flex-1 text-sm leading-relaxed text-muted-foreground">
+            {layerCount} layers, {stepCount} flow steps and {conceptCount} concepts from your
+            real files. Best for a quick orientation.
           </p>
-        ) : null}
+          <Button asChild variant="outline" size="sm" className="mt-3 w-fit">
+            <Link href={`/projects/${projectId}/overview`}>
+              Open the map
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
+        </div>
+
+        <div className="flex flex-col rounded-xl border border-[#1e5033] bg-[#0e2a1c] p-4">
+          <div className="flex items-center gap-2">
+            <BookOpen className="size-4 text-primary" aria-hidden="true" />
+            <p className="text-sm font-semibold text-foreground">Foundations lessons</p>
+          </div>
+          <p className="mt-1.5 flex-1 text-sm leading-relaxed text-[#a9cbb8]">
+            {lessons.length} ordered lessons, each with a quiz and real code.{" "}
+            {allPassed
+              ? "You passed every lesson."
+              : `${passedCount} of ${lessons.length} passed so far.`}
+          </p>
+          <Button asChild size="sm" className="mt-3 w-fit">
+            <Link href={`/projects/${projectId}/learn`}>
+              {learnLabel}
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
+        </div>
       </div>
+
+      {allPassed ? (
+        <div className="mt-4 flex items-start gap-3 rounded-xl border border-[#584211] bg-[#2b1f06] p-4">
+          <Check className="mt-0.5 size-4 shrink-0 text-[#ffc53d]" aria-hidden="true" />
+          <p className="text-sm leading-relaxed text-[#ffd57a]">
+            Foundations complete. Next time you get stuck, the debug pathway explains the
+            error in the context of these same files.
+          </p>
+        </div>
+      ) : null}
 
       {snapshot ? (
         <details className="mt-5 rounded-xl border border-border bg-[#0e141b]">
@@ -239,7 +307,7 @@ function MapReadyPanel({
           Next build step
         </p>
         <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-          The Foundations lessons arrive in Phase 4. They reuse this map and the same
+          The debug pathway arrives in Phase 5. It reuses this guidebook and the same
           snapshot, so nothing needs to be re-read from GitHub.
         </p>
       </div>
@@ -256,11 +324,6 @@ function Stat({ label, value }: { label: string; value: string }) {
       </dd>
     </div>
   );
-}
-
-function formatChars(value: number): string {
-  if (value < 1_000) return String(value);
-  return `${(value / 1_000).toFixed(1)}k`;
 }
 
 function formatBytes(value: number): string {

@@ -1,3 +1,6 @@
+import type { GuidebookDoc } from "@/lib/domain/architecture";
+import type { LessonDoc, Part } from "@/lib/domain/lesson";
+import { lessonPartLimits } from "@/lib/domain/lesson";
 import type { SnapshotFile, Stack } from "@/lib/domain/project";
 import { ARCHITECTURE_LIMITS } from "@/lib/domain/architecture";
 
@@ -7,6 +10,7 @@ import { ARCHITECTURE_LIMITS } from "@/lib/domain/architecture";
  */
 
 export const ARCHITECTURE_PROMPT_VERSION = "architecture-v1";
+export const LESSONS_PROMPT_VERSION = "lessons-v1";
 
 /**
  * Voice rules shared by every stage. BLUEPRINT §6 + §10: plain English, short sentences,
@@ -131,4 +135,172 @@ HARD CONSTRAINTS
 - ids must be lowercase kebab-case and unique within their list.`;
 
   return { prompt, includedFiles, includedChars };
+}
+
+/** Lessons share the architecture snapshot, with a slightly smaller budget per call. */
+export const MAX_LESSON_FILE_CHARS = 120_000;
+
+export const LESSONS_SYSTEM_PROMPT = `You are Gekonstruct's lesson writer. You turn a codebase into the Foundations pathway: ordered lessons that teach the person who built the project with AI how to read and change it safely.
+
+${VOICE_RULES}
+
+The pathway must feel like one course about THIS repo, not a stack of unrelated articles. Later lessons may assume earlier ones were read.
+
+Return only the JSON object. No prose before or after it.`;
+
+export type LessonsPromptInput = {
+  owner: string;
+  repo: string;
+  part: Part;
+  stack: Stack | null;
+  guidebook: GuidebookDoc;
+  files: SnapshotFile[];
+  existingLessons: LessonDoc[];
+};
+
+function mapSummary(guidebook: GuidebookDoc): string {
+  const layers = guidebook.architecture.layers
+    .map((layer) => `- ${layer.name}: ${layer.purpose} (files: ${layer.files.join(", ")})`)
+    .join("\n");
+  const concepts = guidebook.concepts
+    .map((concept) => `- ${concept.term}: ${concept.whyItMatters} (files: ${concept.files.join(", ")})`)
+    .join("\n");
+
+  return `SUMMARY
+${guidebook.summary.whatItDoes}
+
+PLAIN SUMMARY
+${guidebook.summary.plainSummary}
+
+LAYERS
+${layers}
+
+CONCEPTS
+${concepts}`;
+}
+
+export function buildLessonsUserPrompt(input: LessonsPromptInput): {
+  prompt: string;
+  includedFiles: number;
+  includedChars: number;
+  allowedCount: { min: number; max: number };
+} {
+  const stackLines = input.stack
+    ? STACK_LABELS.flatMap(([key, label]) => {
+        const value = input.stack?.[key];
+        return value ? [`- ${label}: ${value}`] : [];
+      })
+    : [];
+
+  const paths = input.files.map((file) => file.path);
+  const pathList = paths.map((path) => `- ${path}`).join("\n");
+
+  const contents: string[] = [];
+  let includedChars = 0;
+  let includedFiles = 0;
+  const skipped: string[] = [];
+
+  for (const file of input.files) {
+    if (includedChars + file.content.length > MAX_LESSON_FILE_CHARS) {
+      skipped.push(file.path);
+      continue;
+    }
+    contents.push(`### ${file.path}\n${file.content}`);
+    includedChars += file.content.length;
+    includedFiles += 1;
+  }
+
+  const skippedLine =
+    skipped.length > 0
+      ? `\n${skipped.length} file(s) were left out to fit the budget: ${skipped.join(", ")}. Do not cite them as code you read.`
+      : "";
+
+  const existingCount = input.existingLessons.length;
+  const allowedCount = lessonPartLimits(input.part, existingCount);
+
+  const existing =
+    input.part === 2
+      ? input.existingLessons
+          .map(
+            (lesson) =>
+              `${String(lesson.order).padStart(2, "0")}. ${lesson.title} — ${lesson.goal} (id: ${lesson.id})`,
+          )
+          .join("\n")
+      : "";
+
+  const partTask =
+    input.part === 1
+      ? `Write PART 1 of 2: ${allowedCount.min}-${allowedCount.max} lessons that begin this pathway. Cover the first part of the order below and stop at a natural point; part 2 finishes the pathway.`
+      : `Write PART 2 of 2: ${allowedCount.min}-${allowedCount.max} lessons that finish this pathway. ${existingCount} lesson(s) already exist (listed below). Do not repeat them; continue their order. The finished pathway must contain ${allowedCount.min + existingCount}-${allowedCount.max + existingCount} lessons, and the LAST lesson must be "how to debug here".`;
+
+  const existingBlock =
+    input.part === 2
+      ? `\nLESSONS ALREADY WRITTEN (continue after these; do not repeat them or reuse their ids)\n${existing}`
+      : "";
+
+  const prompt = `PROJECT: ${input.owner}/${input.repo}
+
+DETECTED STACK
+${stackLines.length > 0 ? stackLines.join("\n") : "- unknown"}
+
+THE ARCHITECTURE MAP ALREADY WRITTEN FOR THIS REPO
+${mapSummary(input.guidebook)}
+${existingBlock}
+
+ALLOWED FILE PATHS (the only paths you may put in codeRefs or mention in prose)
+${pathList}
+
+FILE CONTENTS
+${contents.join("\n\n")}${skippedLine}
+
+TASK
+${partTask}
+
+The Foundations pathway must progress in this order:
+1. what this project is
+2. how a request or render flows
+3. where state and data live
+4. how auth and permissions work here
+5. how to add a feature safely
+6. how to debug here
+
+Part 1 covers the beginning of that order. Part 2 continues without repeating and ends with how to debug here.
+
+Return one JSON object with exactly this shape:
+
+{
+  "lessons": [
+    {
+      "id": "short-kebab-case-slug",
+      "title": "Lesson title",
+      "goal": "What the learner will be able to do after this lesson.",
+      "explain": "Markdown, 250-500 words. Teach using THIS repo. At least two real allowed file paths in backticks.",
+      "codeRefs": [
+        { "file": "real/path/from/the/list.ts", "note": "What to look at here, at most two sentences." }
+      ],
+      "gekoTip": "At most two warm sentences in Geko's voice. Point at a real file.",
+      "quiz": [
+        {
+          "question": "A question answerable only after reading THIS lesson about THIS codebase.",
+          "options": ["plausible option", "plausible option", "plausible option"],
+          "correctIndex": 0,
+          "why": "Why the correct option is right, grounded in this lesson and repo."
+        }
+      ]
+    }
+  ]
+}
+
+HARD CONSTRAINTS
+- Return exactly ${allowedCount.min}-${allowedCount.max} lessons for this part.
+- explain: 250-500 words of markdown. Use short paragraphs; headings are allowed but not required. It must contain at least two DISTINCT real allowed paths in backticks.
+- codeRefs: 1-4 items, each file copied exactly from ALLOWED FILE PATHS. The note says what to look at, at most two sentences.
+- gekoTip: at most two sentences, in Geko's voice, pointing at a real file.
+- quiz: 2-3 questions. Each has 3-4 options, exactly one correct, and correctIndex is the 0-based index of the correct option.
+- Quiz questions must be answerable ONLY by someone who read THIS lesson about THIS codebase. Wrong options must be real-but-wrong files or concepts from this repo, never jokes.
+- Do not invent files, routes, features or dependencies. Never cite a path outside ALLOWED FILE PATHS.
+- ids must be lowercase kebab-case and unique within this part. Do not reuse an existing lesson id.
+- No generic tutorial content. No emojis. No hype words. Do not output an xp field.`;
+
+  return { prompt, includedFiles, includedChars, allowedCount };
 }

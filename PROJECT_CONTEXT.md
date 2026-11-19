@@ -24,14 +24,11 @@ chip, footer.
 
 **Ingestion — done (Phase 2).** The dashboard has a connect form (public GitHub URLs only)
 and project cards with stage badges. `createProject` enforces the 3-project cap inside a
-Firestore transaction and writes `project_created`. `/api/pipeline/ingest` reads
-`repos/{owner}/{repo}/git/trees/HEAD?recursive=1`, drops node_modules/build output,
-lockfiles, `.env*`, binaries and blobs over 300 KB, selects up to 60 files / 150k chars by
-the blueprint priority order, truncates files to 12k (head+tail marker), detects the stack
-deterministically, then writes `snapshot/main`, the stack, stage `ingested` and a
-`stage_completed` event. `/projects/[id]` runs the ingest step and, afterwards, shows the
-snapshot stats, file list and detected stack. Failures store `failed:ingested` +
-`stageError` and the UI offers a retry.
+Firestore transaction and writes `project_created`. `/api/pipeline/ingest` reads the GitHub
+tree, drops node_modules/build output, lockfiles, `.env*`, binaries and blobs over 300 KB,
+selects up to 60 files / 150k chars by blueprint priority, truncates files to 12k, detects
+the stack deterministically and writes `snapshot/main` + stage `ingested`. Failures store
+`failed:ingested` + `stageError`; the project page offers a retry.
 
 LLM access is DeepSeek's OpenAI-compatible API: the `openai` SDK with
 `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL=deepseek-flash` (DeepSeek-V4.1-Flash) and
@@ -40,13 +37,25 @@ for a predictable, temperature-honouring JSON answer inside the 60s stage budget
 §3/§12 still name Anthropic; the 2026-11-13 DeepSeek decision below is authoritative and the
 user has updated §4's diagram to DeepSeek.
 
-**Architecture map — done (Phase 3).** `/projects/[id]` runs ingest → architecture
-sequentially behind one button. `/api/pipeline/architecture` builds a prompt from the stored
-snapshot + stack, asks DeepSeek for JSON, validates it with zod and against the real
-snapshot paths, then writes `guidebook/main` with provenance (`model`, `promptVersion`).
-One repair retry is allowed; a second failure stores `failed:architecture`. `/projects/[id]/overview`
-renders the summary, an outside-in layer accordion (native `<details>`, no client JS), the
-request flow, the concepts grid, GitHub-linked file chips and the optional mermaid source.
+**Architecture map — done (Phase 3).** `/api/pipeline/architecture` asks DeepSeek for JSON
+from the stored snapshot + stack, validates it with zod and against real snapshot paths, then
+writes `guidebook/main` with provenance (`model`, `promptVersion`). One repair retry is
+allowed. `/projects/[id]/overview` renders the summary, an outside-in layer accordion (native
+`<details>`, no client JS), the request flow, the concepts grid, GitHub-linked file chips and
+the optional mermaid source.
+
+**Foundations — done (Phase 4).** `/projects/[id]` now runs ingest → architecture → lessons1
+→ lessons2 (four idempotent steps) and reaches `ready`. `/api/pipeline/lessons1|lessons2`
+build the pathway in two model calls from the stored snapshot + guidebook, validate every
+codeRef, prose citation and quiz against real snapshot paths, then write
+`projects/{pid}/lessons/{lid}` (`order`, `part`, 20 XP) and `stage_completed`. Part 1 keeps
+3–5 lessons; part 2 adds 2–5 and sets `ready` + `lessonCount` (6–10 total). `/learn` lists
+both parts with pass state, a progress bar, pathway XP and the +50 completion bonus;
+`/learn/[lessonId]` renders real snapshot code with shiki, a constrained markdown explain,
+the Geko tip and a client `Quiz` that receives only question text/options (never the answer
+key). `completeLesson` re-grades on the server (≥70%), writes progress and
+`quiz_passed|quiz_failed`, and adds XP in one Firestore transaction
+(`users.totalXp` + `progress.xp`), never twice.
 
 Design system live (redesigned 2026-11-13): dark IDE surface (`#0b0f14`), Space Grotesk
 for all UI + display with JetBrains Mono for labels, file paths and code (no serif/italic
@@ -59,18 +68,18 @@ short subtitle, two CTAs, limits line) above a full-width sample-pipeline window
 mac-style red/yellow/green dots, followed by the pathways, how-it-works and closing CTA.
 Signed-in visitors are redirected to `/dashboard`; signing out returns them to `/`.
 
-Last verified: 2026-11-18 — `next build` green, `npx tsc --noEmit` green, `npm run lint`
-green, `npm test` green (44/44). Live architecture run: `wayne-14e/Verdict`
-(36 files / 131,674 chars) produced a guidebook with 6 layers, 7 flow steps, 11 concepts
-and a mermaid source in 2 attempts / ~41s; every file chip and every path cited in prose
-exists in the snapshot. `/projects/[id]` showed “Your map is ready”; `/overview` rendered
-at 1440px and 390px (no horizontal scroll, 7 `<details>`, zero console/page errors);
-signed-out `/overview` 307s to `/login`; the architecture route returns 401 without a
-cookie, 404 for another owner's project and 400 for an empty body. Previously verified
-2026-11-13: live ingestion of `shadcn-ui/taxonomy`, `firebase/quickstart-js` and
-`vercel/next-learn`; `octocat/Hello-World` failed with the friendly stack message; the
-3-project cap disabled the form; hero centred at 1440px and 390px; signed-in `/` and
-`/login` redirect to `/dashboard`; sign-out lands on `/` with the session cookie cleared.
+Last verified: 2026-11-19 — `next build` green, `npx tsc --noEmit` green, `npm run lint`
+green, `npm test` green (62/62). Live Foundations run on `wayne-14e/Verdict` (36 files /
+131,674 chars): lessons1 returned 3 lessons in 1 attempt / 39s, lessons2 returned 3 more in
+1 attempt / 20s; all 6 stored lessons have 3 quiz questions, 3–4 real codeRefs and 6–9 real
+paths cited in prose; stage became `ready` with `lessonCount: 6`. A wrong quiz submission
+stored `passed:false` and awarded 0 XP; a correct retry stored `passed:true` and moved
+`users.totalXp` 0 → 20; a second pass stayed at 20. The lesson page rendered 4 shiki blocks,
+no `correctIndex` in the HTML, and `/learn` showed “1 of 6 lessons passed”. Route checks:
+401 without a cookie, 404 for another owner, 409 on a project already `ready`, 400 on an
+empty body. Previously verified 2026-11-18: architecture on `wayne-14e/Verdict` (6 layers,
+7 flow steps, 11 concepts, ~41s); 2026-11-13: live ingestion of `shadcn-ui/taxonomy`,
+`firebase/quickstart-js` and `vercel/next-learn`, plus the 3-project cap and auth redirects.
 
 ### Build plan — executing phase by phase
 
@@ -80,7 +89,7 @@ cookie, 404 for another owner's project and 400 for an empty body. Previously ve
 | 1 | M1 Auth & shell ✅ | Client Firebase auth + Google sign-in, session cookie via server action, `users/{uid}` bootstrap, landing, `/login`, `/dashboard` empty state, app header | Sign in → `/dashboard` shows empty state; signed-out `/dashboard` redirects to `/login` |
 | 2 | M2 Ingestion ✅ | `createProject` (3-project cap), `/api/pipeline/ingest`, GitHub tree+contents, ingest filters/budget (unit-tested), stack detection (unit-tested), `snapshot/main`, `/projects/[id]` runner, project cards with stage badges | 3 real public repos ingest; `node_modules` never in snapshot; >300 KB skipped; unrecognizable stack fails with message |
 | 3 | M3 Architecture ✅ | `/api/pipeline/architecture`, prompts module, zod schemas, repair retry, `guidebook` doc, `/overview` page (layers, data flow, concepts, file chips, optional mermaid) | guidebook passes zod on a real repo; overview renders real layers |
-| 4 | M4 Foundations | `/api/pipeline/lessons1` + `lessons2`, `/learn` list + lesson page, shiki code blocks, `Quiz`, `completeLesson`, XP transaction, progress state | pass quiz → XP in `users/{uid}`; fail → no XP, retry allowed |
+| 4 | M4 Foundations ✅ | `/api/pipeline/lessons1` + `lessons2`, `/learn` list + lesson page, shiki code blocks, `Quiz`, `completeLesson`, XP transaction, progress state | pass quiz → XP in `users/{uid}`; fail → no XP, retry allowed |
 | 5 | M5 Debug | `/api/debug/run`, symptom form + session list, session page (causes/fix steps/whyItWorks/quiz), `completeDebugSession` | real symptom → evidence files that exist in the snapshot |
 | 6 | M6 Polish | Badges, analytics events, `PipelineRunner` retry UX, error/empty states everywhere, rules deployed, Geko polish | full journey with zero console errors |
 | 7 | M7 Validation | vitest green, `next build` green, `docs/TEST_PLAN.md` mapping events → §1 metrics | 5-tester checklist ready |
@@ -94,13 +103,17 @@ cookie, 404 for another owner's project and 400 for an empty body. Previously ve
   createProject(repoUrl) server action → projects/{pid} (stage "created")
   POST /api/pipeline/ingest → snapshot + stack (stage "ingested")
   POST /api/pipeline/architecture → guidebook/main (stage "architecture")
+  POST /api/pipeline/lessons1 → lessons part 1 (stage "lessons1")
+  POST /api/pipeline/lessons2 → lessons part 2 (stage "ready" + lessonCount)
+  completeLesson(projectId, lessonId, answers) server action → progress + XP transaction
   router.refresh() after each stage → server component re-renders progress
-  POST /api/pipeline/{lessons1|lessons2}, /api/debug/run (planned)
+  POST /api/debug/run (planned)
 [Next.js server]
   server actions: signIn, signOut, createProject, completeLesson, completeDebugSession
   route handlers: pipeline stages (idempotent, ≤60s), debug
   lib: firebase/client (browser), firebase/admin (server), github, projects, llm,
-       prompts, domain/{project,architecture}, pipeline/{ingest,stack,architecture}
+       prompts, lessons, quiz, domain/{project,architecture,lesson,progress},
+       pipeline/{ingest,stack,architecture,lessons}
 [Firestore]
   users/{uid}
   projects/{pid}
@@ -110,17 +123,20 @@ cookie, 404 for another owner's project and 400 for an empty body. Previously ve
 
 Routes as built: `/` (landing, signed-out only — a signed-in visitor is redirected to
 `/dashboard`), `/login`, `/dashboard` (guarded in `src/app/(app)/layout.tsx`),
-`/projects/[id]` (pipeline runner + map-ready or snapshot panel),
-`/projects/[id]/overview` (architecture pathway), `/api/pipeline/ingest` (POST),
-`/api/pipeline/architecture` (POST), `not-found`, `error`.
-Planned: `/projects/[id]/{learn,debug}`, `/api/pipeline/{lessons1,lessons2}`, `/api/debug/run`.
+`/projects/[id]` (pipeline runner + guidebook hub or snapshot panel),
+`/projects/[id]/overview` (architecture pathway), `/projects/[id]/learn` (Foundations list),
+`/projects/[id]/learn/[lessonId]` (lesson + quiz), `/api/pipeline/ingest`,
+`/api/pipeline/architecture`, `/api/pipeline/lessons1`, `/api/pipeline/lessons2` (all POST),
+`not-found`, `error`. Planned: `/projects/[id]/debug`, `/api/debug/run`.
 
 Key modules as built: `src/lib/firebase/{config,client,admin}.ts`, `src/lib/auth/{session,users}.ts`,
-`src/lib/domain/{user,project,architecture}.ts`, `src/lib/pipeline/{ingest,stack,ingest-runner,
-architecture,architecture-runner}.ts`, `src/lib/{github,projects,llm,prompts}.ts`, `src/lib/nav.ts`,
-`src/app/actions/{auth,projects}.ts`,
-`src/components/{brand,auth,app,projects}/*` (incl. `guidebook-parts.tsx`),
-`scripts/dev-session.mjs` (dev-only cookie minter).
+`src/lib/domain/{user,project,architecture,lesson,progress}.ts`,
+`src/lib/pipeline/{ingest,stack,ingest-runner,architecture,architecture-runner,
+lessons,lessons-runner,lessons-route}.ts`,
+`src/lib/{github,projects,llm,prompts,lessons,quiz,code-language}.ts`, `src/lib/nav.ts`,
+`src/app/actions/{auth,projects,lessons}.ts`,
+`src/components/{brand,auth,app,projects}/*` (incl. `guidebook-parts.tsx`, `code-block.tsx`,
+`lesson-markdown.tsx`, `quiz.tsx`), `scripts/dev-session.mjs` (dev-only cookie minter).
 
 Auth boundary: browser keeps the Firebase client session (for realtime Firestore reads);
 the server trusts only the httpOnly cookie, verified with `adminAuth().verifySessionCookie`.
@@ -128,25 +144,28 @@ Route handlers and server actions call `getCurrentUser()`; pages of the `(app)` 
 `requireUser()`.
 
 Client/server boundary: server components by default; `"use client"` only for the sign-in
-button, account menu, connect form, pipeline runner, and (later) quiz, mermaid.
+button, account menu, connect form, pipeline runner and quiz.
 
 ## Data Model
 
-As built through Phase 2 (all timestamps are epoch **milliseconds**, not Firestore Timestamp):
+As built through Phase 4 (all timestamps are epoch **milliseconds**, not Firestore Timestamp):
 
 - `users/{uid}` — `{ email, displayName, photoURL|null, totalXp: 0, badges: [], createdAt }`.
   Written inside a transaction: created once on first sign-in, afterwards only
   `email`/`displayName`/`photoURL` refresh, so XP and badges can never be reset by a login.
+  `totalXp` is incremented only inside `completeLesson`'s transaction.
 - `projects/{pid}` — `{ ownerUid, repoUrl, owner, repo, title, stage, stageError: string|null,
   stack: Stack|null, createdAt, updatedAt, lessonCount }`. Created by `createProject` inside a
   transaction that re-counts the owner's projects (cap 3). Stage values: `created`,
   `ingested`, `architecture`, `lessons1`, `lessons2`, `ready`, `failed:{ingested|architecture|
-  lessons1|lessons2}`. Only route handlers advance it.
+  lessons1|lessons2}`. Only route handlers advance it. `lessons2` writes `ready` directly
+  (BLUEPRINT §8), so the `lessons2` stage remains legal but is never persisted.
 - `projects/{pid}/snapshot/main` — `{ files: [{ path, size, content }], fetchedAt, totalChars,
   truncated: string[] }`. **Deviation:** the blueprint writes `projects/{pid}/snapshot`; Firestore
-  needs a document id, so singleton docs use `main` (same for `guidebook/main` later).
+  needs a document id, so singleton docs use `main` (same for `guidebook/main`).
 - `projects/{pid}/events/{eid}` — `{ type, at, meta }`. `project_created`, `stage_completed`
-  (ingest and architecture) and `analysis_ready` are written today.
+  (ingest, architecture, lessons1, lessons2), `analysis_ready`, `quiz_passed`,
+  `quiz_failed` and `pathway_completed` are written today.
 - `projects/{pid}/guidebook/main` — the architecture map, validated by `GuidebookDocSchema`:
   `{ summary: { whatItDoes, plainSummary, gekoIntro },
      architecture: { layers: [{ id, name, purpose, files[], plainExplanation }],
@@ -155,8 +174,16 @@ As built through Phase 2 (all timestamps are epoch **milliseconds**, not Firesto
      analyzedAt, model, promptVersion }`.
   **Deviation:** `model` and `promptVersion` are extra provenance fields (see Decisions Log).
   `files` always contain real snapshot paths; ids are slugs and unique per list.
-- `projects/{pid}/{lessons/{lid},debugSessions/{sid},progress/{uid}}` — not yet
-  written (Phases 4–6).
+- `projects/{pid}/lessons/{lid}` — `{ order, part: 1|2, id, title, goal, explain, codeRefs:
+  [{ file, note }], gekoTip, xp: 20, quiz: [{ question, options[], correctIndex, why }] }`,
+  validated by `LessonDocSchema`. `explain` is constrained markdown; every `codeRefs.file`,
+  every backticked prose path and every quiz file option is checked against the snapshot.
+  Ids are slugs, unique across both parts; `part 2` order continues after part 1.
+- `projects/{pid}/progress/{uid}` — `{ lessons: Record<lessonId, {passed, score, at}>,
+  debug: Record<sid, {completed, at}>, badges: string[], xp: number,
+  pathwayBonusAwarded: boolean }`. **Deviation:** `pathwayBonusAwarded` is extra so the +50
+  completion bonus is paid exactly once across retakes.
+- `projects/{pid}/debugSessions/{sid}` — not yet written (Phase 5).
 
 ## Env & Secrets
 
@@ -167,7 +194,7 @@ Names only; values live in `.env.local` (gitignored) and the host dashboard.
 | `NEXT_PUBLIC_APP_URL` | metadata base, auth redirect sanity |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` / `_AUTH_DOMAIN` / `_PROJECT_ID` / `_STORAGE_BUCKET` / `_MESSAGING_SENDER_ID` / `_APP_ID` | browser Firebase config |
 | `FIREBASE_SERVICE_ACCOUNT` | server only — firebase-admin credential, one-line JSON |
-| `DEEPSEEK_API_KEY` | server only — `src/lib/llm.ts` (architecture stage today; lessons/debug later), sent to `https://api.deepseek.com` |
+| `DEEPSEEK_API_KEY` | server only — `src/lib/llm.ts` (architecture + lessons stages; debug later), sent to `https://api.deepseek.com` |
 | `DEEPSEEK_MODEL` | optional model override, default `deepseek-flash` (DeepSeek-V4.1-Flash) |
 | `DEEPSEEK_BASE_URL` | optional endpoint override, default `https://api.deepseek.com` |
 | `GITHUB_TOKEN` | optional, raises GitHub anonymous limit 60 req/h (used by `src/lib/github.ts`) |
@@ -182,8 +209,9 @@ Prompts live in `src/lib/prompts.ts` only. Version constant + last change:
 | Version | Stage | Last changed | Notes |
 |---|---|---|---|
 | `architecture-v1` | architecture | 2026-11-18 | System rules (plain English, real paths, JSON only, Geko voice) + user prompt built from stack, the exact allowed path list and the snapshot contents (150k-char budget; omitted files are named). Demands 3–7 layers, 4–8 flow steps and 5–12 concepts. |
+| `lessons-v1` | lessons1 / lessons2 | 2026-11-19 | One system prompt, one builder with a `part` switch. Part 1 asks 3–5 opening lessons; part 2 receives the stored part-1 titles/goals/ids and asks for the remainder (2–5) so the pathway totals 6–10 and ends with “how to debug here”. Demands 250–500-word markdown explains with ≥2 distinct real paths, 1–4 real codeRefs, Geko tip and 2–3 codebase-specific quiz questions. Snapshot budget 120k chars; omitted files are named. |
 
-`lessons-v1` (Phase 4) and `debug-v1` (Phase 5) are not written yet. Every prompt change =
+`debug-v1` (Phase 5) is not written yet. Every prompt change =
 version bump + this table + a Decisions Log entry.
 
 ## Decisions Log
@@ -336,43 +364,81 @@ Append-only. Newest last.
   snapshot is already capped at 60 files / 150k chars, so in practice every kept file is sent.
   If a snapshot is larger, files are included in stored order until the cap and the prompt
   names the omissions so the model cannot pretend it read them.
+- **2026-11-19 — The Foundations pathway is written in two model calls, not one.** Part 1 asks
+  for 3–5 opening lessons; part 2 receives the stored part-1 ids/titles/goals and asks for the
+  remainder (2–5) so the pathway lands at 6–10 and ends with “how to debug here”
+  (BLUEPRINT §8). Shared code normalizes both parts. Rejected: one call for all 6–10 lessons
+  (larger JSON output risks truncation and there is no way to resume after a part fails).
+- **2026-11-19 — Lessons validate file references harder than the architecture map.** Every
+  `codeRefs.file`, every backticked path in `explain`/`gekoTip`, and every file-shaped quiz
+  option must exist in the snapshot; `explain` must cite at least two distinct real paths, and
+  quiz options must be distinct with an in-range `correctIndex`. One repair retry, then the
+  part fails. Rejected: silently dropping invented refs (a lesson that points at a file that
+  does not exist teaches the wrong mental model, and the quiz would not be answerable from the
+  lesson).
+- **2026-11-19 — Lesson XP is 20 plus a 50 pathway bonus paid once.** `completeLesson` writes
+  `users.totalXp` and `progress.xp` in one transaction, only on a first pass; a failed attempt
+  never removes an earlier pass. The bonus is tracked by `progress.pathwayBonusAwarded`
+  (documented Data Model deviation) so retakes and re-passes can never pay it twice.
+  Rejected: deriving “bonus paid” from lesson pass counts (a progress reset or a trimmed
+  pathway would reopen the payout).
+- **2026-11-19 — `lessons2` writes `stage: "ready"` directly.** BLUEPRINT §8 says lessons2 is
+  the final pipeline step, so the stored stage skips `lessons2`; the value remains in the
+  project schema so a resumed/repairing project can still be recognised. Rejected: persisting
+  `lessons2` then flipping to `ready` (an extra write nothing can observe).
+- **2026-11-19 — Lesson `explain` markdown is rendered by a local subset renderer.** The prompt
+  restricts the model to headings, paragraphs, ordered/unordered lists, `**bold**` and
+  `` `inline code` ``, so `LessonMarkdown` parses exactly that and never injects HTML.
+  Rejected: adding `react-markdown`/`remark-gfm` (a new dependency plus an unbounded HTML
+  surface for a field we already constrain).
+- **2026-11-19 — `requestStructured` accepts an `invalidOutputMessage`.** The shared retry
+  loop used to say the model returned an invalid “map”; the lessons stage now supplies its own
+  wording. Rejected: duplicating the retry/JSON/validation loop in the lesson runner.
 
 ## Change Log
 
 Newest last.
 
-- **2026-11-18 — Phase 3: architecture stage, guidebook doc, overview page.**
-  Files: `src/lib/domain/architecture.ts`, `src/lib/prompts.ts`, `src/lib/llm.ts`,
-  `src/lib/pipeline/{architecture,architecture-runner}.ts` (+ `architecture.test.ts`),
-  `src/lib/projects.ts`, `src/app/api/pipeline/architecture/route.ts`,
-  `src/app/(app)/projects/[id]/{page.tsx,overview/page.tsx}`,
-  `src/components/projects/{pipeline-runner,guidebook-parts}.tsx`, `PROJECT_CONTEXT.md`.
-  Why: the Architecture pathway is the first thing a vibe-coder needs — a plain-English map of
-  a repo they don't fully understand — and every later lesson reuses this guidebook.
-  What: `architecture-v1` prompt (stack + exact path list + snapshot contents, capped at 150k
-  chars); `requestStructured` calls DeepSeek in JSON mode with thinking disabled, parses the
-  object, validates it with zod + snapshot-path rules, and allows one repair retry before the
-  stage fails. File refs are filtered to real snapshot paths, invented prose paths are rejected,
-  counts are clamped to 3–7 layers / 4–8 steps / 5–12 concepts, ids are slugged and de-duped,
-  and mermaid is kept only if it is a real `flowchart`/`graph` source. The route stores
-  `guidebook/main` (+ `model`, `promptVersion`, `analyzedAt`), moves the project to
-  `architecture`, and writes `stage_completed` + `analysis_ready` events in one batch.
-  `PipelineRunner` now runs ingest → architecture sequentially and derives the next step from
-  `stage` + `hasSnapshot`; the project page shows a map-ready panel with a CTA; `/overview`
-  renders the Geko intro, summary, layer `<details>` accordion, numbered request flow, concept
-  grid, GitHub-linked file chips and the diagram source. Error/empty states cover missing maps,
-  failed stages, missing snapshots and another user's project.
-  Verify: `npm run dev` → sign in → open a project that has been ingested → “Build the
-  architecture map” → both steps finish and the page shows “Your map is ready” → “Open the
-  architecture map” → layers expand, flow steps cite files, chips link to
-  `github.com/{owner}/{repo}/blob/HEAD/{path}`, and the diagram source expands. Resize to 390px:
-  no horizontal scroll. Check Firestore `projects/{pid}/guidebook/main` has real paths only and
-  `projects/{pid}.stage === "architecture"`. Re-POST the route to confirm it overwrites its own
-  output. Signed-out `/overview` redirects to `/login`; the route returns 401 without a cookie,
-  404 for another owner and 409 after a later stage has run.
-  Verified 2026-11-18 on `wayne-14e/Verdict` (36 files / 131,674 chars): 6 layers, 7 flow steps,
-  11 concepts, mermaid source, 2 attempts, ~41s; `/overview` at 1440px and 390px with zero
-  console errors; `tsc`, lint, 44/44 tests and `next build` green.
+- **2026-11-19 — Phase 4: Foundations pathway (lessons, learn pages, quiz, XP).**
+  Files: `src/lib/domain/{lesson,progress}.ts`, `src/lib/{quiz,code-language,lessons}.ts`,
+  `src/lib/prompts.ts`, `src/lib/llm.ts`, `src/lib/pipeline/{lessons,lessons-runner,lessons-route}.ts`
+  (+ `lessons.test.ts`, `src/lib/quiz.test.ts`), `src/app/api/pipeline/{lessons1,lessons2}/route.ts`,
+  `src/app/actions/lessons.ts`, `src/app/(app)/projects/[id]/{page.tsx,learn/page.tsx,
+  learn/[lessonId]/page.tsx,overview/page.tsx}`, `src/components/projects/{pipeline-runner,
+  code-block,lesson-markdown,quiz}.tsx`, `PROJECT_CONTEXT.md`.
+  Why: this is the first pathway a user finishes — it turns the architecture map into ordered,
+  quiz-checked lessons built from their own files, and pays XP exactly once for a real pass.
+  What: `lessons-v1` builds the pathway in two calls. Part 1 asks 3–5 lessons from the snapshot +
+  guidebook; part 2 receives the stored part-1 ids/titles/goals and adds 2–5, ending with
+  “how to debug here”. A shared normalizer rejects invented paths (codeRefs, backticked prose,
+  file-shaped quiz options), requires ≥2 distinct real paths per explain, validates
+  `correctIndex`/distinct options, slugs and de-dupes ids, continues `order`, clamps the part
+  and the total (6–10) and sets `xp: 20`. Lessons1 stores part 1 and moves the project to
+  `lessons1`; lessons2 stores part 2 and moves it straight to `ready` with `lessonCount`.
+  `/projects/[id]` runs ingest → architecture → lessons1 → lessons2 and then shows a guidebook
+  hub (map CTA, lesson progress, snapshot files); `/learn` lists both parts with pass state, a
+  progress bar, pathway XP and the +50 bonus; `/learn/[lessonId]` renders the goal, constrained
+  markdown, shiki code blocks read from the snapshot by path, the Geko tip and a client `Quiz`
+  that receives question text/options only. `completeLesson` re-grades on the server (≥70%),
+  writes progress and `quiz_passed|quiz_failed`, and inside one transaction increments
+  `users.totalXp` + `progress.xp` for a first pass only, plus the once-only pathway bonus and a
+  `pathway_completed` event.
+  Verify: `npm run dev` → open a project at `architecture` → “Write the first lessons” then
+  “Finish the lessons” → the hub shows lessons and `/learn` lists 6–10 with both parts. Open a
+  lesson: code blocks expand with real file content and “Open on GitHub” links, no page fetches
+  GitHub at read time. Submit fewer than 70%: result shows “Not yet”, 0 XP, progress unchanged,
+  “Try again” re-enables the form. Pass: XP toast, `users.totalXp` rises by 20 once, passing
+  again leaves it unchanged, and the final lesson pays the +50 bonus once. Reload `/learn` to
+  see the pass state and bar move. Re-POST `lessons1` on a `lessons1` project to confirm it
+  overwrites only part 1; it returns 409 on `ready`.
+  Verified 2026-11-19 on `wayne-14e/Verdict` (36 files / 131,674 chars): lessons1 → 3 lessons
+  in 1 attempt / 39s; lessons2 → 3 more in 1 attempt / 20s; all 6 have 3 quiz questions, 3–4
+  real codeRefs and 6–9 real prose paths, no invented refs; stage `ready`, `lessonCount: 6`;
+  wrong answers stored `passed:false` and awarded 0 XP, a correct retry moved `users.totalXp`
+  0 → 20, a second pass stayed at 20; the lesson page rendered 4 shiki blocks with no
+  `correctIndex` in HTML; `/learn` showed “1 of 6 lessons passed”. Routes: 401 without a
+  cookie, 404 for another owner, 409 on `ready`, 400 on an empty body. `tsc`, lint, 62/62 tests
+  and `next build` green.
 
 ## Change Log Archive
 
@@ -388,6 +454,9 @@ Older entries, one line each (full detail in git history):
 - **2026-11-13 — Phase 2:** ingestion, stack detection, project cards and the runner; verified on
   `shadcn-ui/taxonomy`, `firebase/quickstart-js` and `vercel/next-learn`; Hello-World failed with
   the stack message.
+- **2026-11-18 — Phase 3:** `architecture-v1` stage → `guidebook/main` + `/overview` (layers,
+  flow, concepts, real file chips); verified on `wayne-14e/Verdict`, 2 attempts / ~41s.
+  Verify: rebuild the map and expand every layer on `/overview`.
 - **2026-11-13 — Landing hero recentred:** full-width sample window, centred header nav, signed-in
   `/` redirects to `/dashboard`.
 - **2026-11-13 — LLM config Anthropic → DeepSeek:** `openai` SDK and `DEEPSEEK_*` env (no call yet).
@@ -398,6 +467,21 @@ Older entries, one line each (full detail in git history):
 
 - **FIXED 2026-11-18 — `DEEPSEEK_API_KEY` was blank.** The key is configured and the
   architecture stage makes a real model call (see Change Log 2026-11-18).
+- **FIXED 2026-11-19 — Lessons and quizzes were placeholders.** The full Foundations pathway
+  now ships (see Change Log 2026-11-19).
+- **Passing is effectively all-or-nothing with 2–3 questions.** The blueprint fixes quizzes at
+  2–3 questions and a ≥70% pass, so 2/3 = 66.7% fails and a 3-question quiz needs all three
+  correct. This is blueprint arithmetic, not a bug, but it makes “70%” feel stricter than it
+  reads; revisit if testers report it as harsh.
+- **Regenerating a lessons part can orphan progress entries.** Lesson ids are slugs derived
+  from titles, so re-running `lessons1` after a model change can change ids. Old
+  `progress.lessons` entries remain (XP already earned is never clawed back) but stop counting
+  toward the new pathway. No UI explains this yet.
+- **Lesson latency shares the 60s stage cap.** Live runs were 39s (part 1) and 20s (part 2) on a
+  131,674-char snapshot; a repair retry on a near-cap repo could exceed `maxDuration = 60` in
+  production, same risk as the architecture stage.
+- **`lesson_viewed` is not recorded.** The quiz events and `pathway_completed` are written, but
+  the view event listed in BLUEPRINT §13 waits for M6 instrumentation.
 - **Architecture latency sits close to the 60s stage cap on large snapshots.** A first pass
   on a 131,674-char snapshot took ~20s; the repair pass pushed the stage to ~41s. Repos near
   the 150k ingest cap can exceed `maxDuration = 60` in production. Thinking mode is already
@@ -416,8 +500,8 @@ Older entries, one line each (full detail in git history):
   badge land with M6 instrumentation (BLUEPRINT §13).
 - **Mermaid is shown as source, not rendered.** The stored flowchart opens in a collapsed
   `<pre>`; diagram rendering is Backlog polish.
-- **The guidebook is reachable only from the project page.** There is no project hub nav
-  (`Map / Learn / Debug`) until M6; `/overview` links back to the project.
+- **There is no project hub nav yet.** The map and the Foundations pathway are linked from
+  the project page and from each other; a shared `Map / Learn / Debug` hub lands with M6.
 
 - **Google popup sign-in not yet verified in an automated browser** (needs an interactive
   Google account). The token→cookie→session path is verified with a minted session cookie;
@@ -433,17 +517,17 @@ Older entries, one line each (full detail in git history):
   (`treeTruncated`) but does not surface it in the UI yet; selection still works on the
   entries that did arrive, so a truncated tree only means files are missing, never that the
   snapshot is invalid.
-- **FIXED 2026-11-18 — The runner only executed the ingest stage.** It now runs
-  ingest → architecture sequentially; lessons and debug remain disabled placeholders
-  (Phases 4–5).
-- **Stage progress still uses `router.refresh()`, not `onSnapshot`.** Snapshot and guidebook
-  stats are read once per server render; the realtime listener stays Backlog until more
-  stages need streaming progress.
+- **FIXED 2026-11-19 — The runner stopped after the architecture map.** It now runs
+  ingest → architecture → lessons1 → lessons2 sequentially; only the debug pathway remains a
+  disabled placeholder (Phase 5).
+- **Stage progress still uses `router.refresh()`, not `onSnapshot`.** Snapshot, guidebook and
+  lesson progress are read once per server render; the realtime listener stays Backlog until
+  more stages need streaming progress.
 - **A project cannot be removed.** The 3-project cap counts every project, including ones
   stuck in `failed:*`, so a QA account that fails three times is locked out of connecting
   more repos. Removal/reconnect ships with the project settings entry (see Backlog).
-- Landing page copy describes the lessons and debug pathways before they are clickable
-  (Phases 4–5); the architecture map is live.
+- Landing page copy describes the debug pathway before it is clickable (Phase 5); the
+  architecture map and Foundations lessons are live.
 - **FIXED 2026-11-13 — Dashboard “Connect a repository” was disabled until Phase 2.**
   The connect form now creates a project and the project page runs ingestion.
 - **FIXED 2026-11-13 — No dark theme.** Superseded by the design reversal: the product is
@@ -466,6 +550,10 @@ Older entries, one line each (full detail in git history):
   content has been through tester validation.
 - **Project hub navigation** (`Map / Learn / Debug`) and the `map-reader` badge event, both
   scheduled with M6.
+- **Revisit quiz pass arithmetic** once tester feedback exists: with 2–3 questions a 70% pass
+  means 2 of 2 or 3 of 3, so a single miss fails a lesson. Either ask for 4 questions or treat
+  2 of 3 as a pass.
+- **`lesson_viewed` instrumentation** alongside the other M6 events.
 - **Reduce architecture prompt cost/latency** if testers connect very large repos: per-file
   budget for prose-heavy files, or split the call into "layers" and "concepts".
 - **Cache the built prompt** (or the raw model answer) per snapshot so a failed repair does

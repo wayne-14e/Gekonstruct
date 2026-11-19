@@ -31,6 +31,8 @@ export type StructuredRequest<T> = {
   label: string;
   system: string;
   user: string;
+  /** Shown when both attempts fail. Defaults to the architecture-map wording. */
+  invalidOutputMessage?: string;
   validate: (raw: unknown) => ValidationResult<T>;
 };
 
@@ -256,7 +258,8 @@ export async function requestStructured<T>(request: StructuredRequest<T>): Promi
   }
 
   throw new LlmError(
-    "The AI couldn't produce a map that matches this repository. Try again — a retry usually fixes it.",
+    request.invalidOutputMessage ??
+      "The AI couldn't produce a map that matches this repository. Try again — a retry usually fixes it.",
     "llm-invalid-output",
     502,
   );

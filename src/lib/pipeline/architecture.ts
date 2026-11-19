@@ -33,7 +33,7 @@ function normalizePath(path: string): string {
   return trimmed.startsWith("./") ? trimmed.slice(2) : trimmed;
 }
 
-function slugify(raw: string): string {
+export function slugify(raw: string): string {
   const slug = raw
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -42,7 +42,7 @@ function slugify(raw: string): string {
   return slug || "item";
 }
 
-function uniqueId(base: string, used: Set<string>): string {
+export function uniqueId(base: string, used: Set<string>): string {
   let candidate = base;
   let suffix = 2;
   while (used.has(candidate)) {
@@ -65,7 +65,7 @@ export function mentionsRealPath(text: string, allowedPaths: ReadonlySet<string>
   return false;
 }
 
-function directoryIndex(paths: ReadonlySet<string>): Set<string> {
+export function directoryIndex(paths: ReadonlySet<string>): Set<string> {
   const dirs = new Set<string>();
   for (const path of paths) {
     const segments = path.split("/");

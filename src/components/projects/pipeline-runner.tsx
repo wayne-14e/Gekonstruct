@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, Loader2, Play, RotateCcw } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Play, RotateCcw, Route } from "lucide-react";
 import { toast } from "sonner";
 import { SpeechBubble } from "@/components/brand/speech-bubble";
 import { Button } from "@/components/ui/button";
 import type { ProjectStage } from "@/lib/domain/project";
 import { cn } from "@/lib/utils";
 
-type StepKey = "ingest" | "architecture";
+type StepKey = "ingest" | "architecture" | "lessons1" | "lessons2";
 
 const STEPS: Array<{
   key: StepKey;
@@ -32,15 +33,27 @@ const STEPS: Array<{
     detail:
       "Sends the snapshot to the analysis engine and checks every file it cites against your real files.",
     endpoint: "/api/pipeline/architecture",
-    success: "Architecture map ready. Open it from the project page.",
+    success: "Architecture map ready.",
+  },
+  {
+    key: "lessons1",
+    label: "Write the first lessons",
+    detail:
+      "Builds the first half of the Foundations pathway: what the project is, the request flow, and where data lives.",
+    endpoint: "/api/pipeline/lessons1",
+    success: "First half of the lessons stored.",
+  },
+  {
+    key: "lessons2",
+    label: "Finish the lessons",
+    detail:
+      "Adds auth, safe feature work and debugging lessons. Every code reference and quiz answer is checked against your snapshot.",
+    endpoint: "/api/pipeline/lessons2",
+    success: "Foundations lessons ready.",
   },
 ];
 
 const FUTURE_STEPS = [
-  {
-    label: "Write the lessons",
-    detail: "Foundations pathway with quizzes · Phase 4",
-  },
   {
     label: "Open the debug guide",
     detail: "Symptom-led explanations · Phase 5",
@@ -50,30 +63,51 @@ const FUTURE_STEPS = [
 /**
  * Client orchestrator for the pipeline (BLUEPRINT §4). It POSTs stages in order and
  * refreshes the server component after each one, so progress always comes from Firestore
- * rather than local optimism. Re-rendering mid-run is safe: the next stage is derived
- * from `stage` + `hasSnapshot`, not from component state.
+ * rather than local optimism. Re-rendering mid-run is safe: the next stage is derived from
+ * `stage` plus the stored snapshot/guidebook/lessons, not from component state.
  */
 export function PipelineRunner({
   projectId,
   stage,
   stageError,
   hasSnapshot,
+  hasGuidebook,
+  lessonCount,
 }: {
   projectId: string;
   stage: ProjectStage;
   stageError: string | null;
   hasSnapshot: boolean;
+  hasGuidebook: boolean;
+  lessonCount: number;
 }) {
   const router = useRouter();
   const [running, setRunning] = useState(false);
   const [activeStep, setActiveStep] = useState<StepKey | null>(null);
   const [failedStep, setFailedStep] = useState<StepKey | null>(
-    stage === "failed:ingested" ? "ingest" : stage === "failed:architecture" ? "architecture" : null,
+    stage === "failed:ingested"
+      ? "ingest"
+      : stage === "failed:architecture"
+        ? "architecture"
+        : stage === "failed:lessons1"
+          ? "lessons1"
+          : stage === "failed:lessons2"
+            ? "lessons2"
+            : null,
   );
   const [error, setError] = useState<string | null>(stageError);
 
   const ingestDone = hasSnapshot && stage !== "failed:ingested";
-  const startIndex = ingestDone ? 1 : 0;
+  const mappedDone =
+    hasGuidebook &&
+    stage !== "created" &&
+    stage !== "ingested" &&
+    stage !== "failed:ingested" &&
+    stage !== "failed:architecture";
+  const lessons1Done = mappedDone && lessonCount > 0 && stage !== "failed:lessons1";
+  const lessons2Done = lessons1Done && stage === "ready";
+
+  const startIndex = !ingestDone ? 0 : !mappedDone ? 1 : !lessons1Done ? 2 : !lessons2Done ? 3 : 4;
   const startStep = STEPS[startIndex];
 
   async function run() {
@@ -107,7 +141,7 @@ export function PipelineRunner({
         }
       }
 
-      toast.success(STEPS[STEPS.length - 1]?.success ?? "Pipeline finished.");
+      toast.success("Your guidebook is ready — map and lessons.");
       router.refresh();
     } catch {
       const message = "We couldn't reach the server. Check your connection and try again.";
@@ -124,19 +158,35 @@ export function PipelineRunner({
     if (activeStep === key) return "active";
     if (failedStep === key) return "failed";
     if (key === "ingest") return ingestDone ? "done" : "pending";
-    return "pending";
+    if (key === "architecture") return mappedDone ? "done" : "pending";
+    if (key === "lessons1") return lessons1Done ? "done" : "pending";
+    return lessons2Done ? "done" : "pending";
   }
 
   const label = running ? "running" : failedStep ? "stopped" : "ready to read";
+  const heading =
+    startIndex <= 1
+      ? startIndex === 0
+        ? "Read your repository"
+        : "Map your architecture"
+      : "Write your lessons";
   const buttonLabel = running
     ? "Working…"
     : failedStep === "ingest"
       ? "Retry ingestion"
       : failedStep === "architecture"
         ? "Retry the map"
-        : startIndex === 0
-          ? "Start the pipeline"
-          : "Build the architecture map";
+        : failedStep === "lessons1"
+          ? "Retry the first lessons"
+          : failedStep === "lessons2"
+            ? "Retry the final lessons"
+            : startIndex === 0
+              ? "Start the pipeline"
+              : startIndex === 1
+                ? "Build the architecture map"
+                : startIndex === 2
+                  ? "Write the first lessons"
+                  : "Finish the lessons";
 
   return (
     <section
@@ -147,7 +197,7 @@ export function PipelineRunner({
         <div>
           <p className="label-mono">Pipeline</p>
           <h2 id="pipeline-heading" className="mt-2 text-xl">
-            {startIndex === 0 ? "Read your repository" : "Map your architecture"}
+            {heading}
           </h2>
         </div>
         <span
@@ -159,6 +209,18 @@ export function PipelineRunner({
           {label}
         </span>
       </div>
+
+      {mappedDone ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-[#0e141b] px-4 py-3">
+          <Route className="size-4 shrink-0 text-primary" aria-hidden="true" />
+          <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+            Your architecture map is ready. You can read it while the lessons are written.
+          </p>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/projects/${projectId}/overview`}>Open the map</Link>
+          </Button>
+        </div>
+      ) : null}
 
       <ol className="mt-5 space-y-3">
         {STEPS.map((step, index) => {
@@ -199,7 +261,7 @@ export function PipelineRunner({
       ) : null}
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <Button type="button" size="lg" onClick={run} disabled={running}>
+        <Button type="button" size="lg" onClick={run} disabled={running || startIndex >= STEPS.length}>
           {running ? (
             <>
               <Loader2 className="animate-spin" aria-hidden="true" />
@@ -218,14 +280,20 @@ export function PipelineRunner({
           )}
         </Button>
         <p className="font-mono text-[0.6875rem] tracking-[0.08em] text-muted-foreground uppercase">
-          {startIndex === 0 ? "60 files max · 150k characters" : "One analysis call · ~20–60s"}
+          {startIndex === 0
+            ? "60 files max · 150k characters"
+            : startIndex === 1
+              ? "One analysis call · ~20–60s"
+              : "One model call per half · 60s budget"}
         </p>
       </div>
 
       <SpeechBubble mood="encouraging" className="mt-6" label="Geko">
         {startIndex === 0
           ? "I read the tree, skip node_modules and lockfiles, and keep only the files that explain how this project works."
-          : "Now I map what I kept: the layers, the path a request takes, and the concepts you need to name. Every file I mention will be one that really exists in your repo."}
+          : startIndex === 1
+            ? "Now I map what I kept: the layers, the path a request takes, and the concepts you need to name. Every file I mention will be one that really exists in your repo."
+            : "Lessons come straight from your snapshot and the map. Each one points at real files, and its quiz is answerable only if you read that lesson."}
       </SpeechBubble>
     </section>
   );

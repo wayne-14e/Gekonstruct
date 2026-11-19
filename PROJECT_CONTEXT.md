@@ -44,7 +44,7 @@ allowed. `/projects/[id]/overview` renders the summary, an outside-in layer acco
 `<details>`, no client JS), the request flow, the concepts grid, GitHub-linked file chips and
 the optional mermaid source.
 
-**Foundations — done (Phase 4).** `/projects/[id]` now runs ingest → architecture → lessons1
+**Foundations — done (Phase 4).** `/projects/[id]` runs ingest → architecture → lessons1
 → lessons2 (four idempotent steps) and reaches `ready`. `/api/pipeline/lessons1|lessons2`
 build the pathway in two model calls from the stored snapshot + guidebook, validate every
 codeRef, prose citation and quiz against real snapshot paths, then write
@@ -56,6 +56,22 @@ the Geko tip and a client `Quiz` that receives only question text/options (never
 key). `completeLesson` re-grades on the server (≥70%), writes progress and
 `quiz_passed|quiz_failed`, and adds XP in one Firestore transaction
 (`users.totalXp` + `progress.xp`), never twice.
+
+**Debug & Learn — done (Phase 5).** Pathway 2 is live at `/projects/[id]/debug` and
+`/projects/[id]/debug/[sid]`. `/api/debug/run` takes `{ projectId, symptom }`, creates a
+`pending` session document, extracts keywords and matches the top-10 snapshot files using a
+deterministic overlap function (path segments weighted +20/+10, bounded content frequency
+counts), builds the `debug-v1` prompt over the matched code + guidebook summary, calls DeepSeek
+with repair retry, audits every evidence file and backticked path against the snapshot, and writes
+`projects/{pid}/debugSessions/{sid}` (`done`/`failed`) + `debug_created` event.
+`/projects/[id]/debug` provides the symptom input form with quick suggestion chips and session
+history. `/projects/[id]/debug/[sid]` renders the reported symptom, likely causes with confidence
+badges and shiki `<CodeBlock>` evidence previews, concrete fix steps, a why-it-works concept
+panel, Geko tip bubble, and client `<DebugQuiz>`. `completeDebugSession` re-grades the quiz on
+the server (≥70%), writes progress `debug[sid] = { completed: true, at }`, awards 30 XP on first
+pass, grants the `"bug-whisperer"` badge on the first completed debug session (written to both
+`progress.badges` and `users/{uid}.badges`), and records `debug_completed` inside a single
+Firestore transaction. The project hub ReadyPanel renders all three pathways.
 
 Design system live (redesigned 2026-11-13): dark IDE surface (`#0b0f14`), Space Grotesk
 for all UI + display with JetBrains Mono for labels, file paths and code (no serif/italic
@@ -69,17 +85,11 @@ mac-style red/yellow/green dots, followed by the pathways, how-it-works and clos
 Signed-in visitors are redirected to `/dashboard`; signing out returns them to `/`.
 
 Last verified: 2026-11-19 — `next build` green, `npx tsc --noEmit` green, `npm run lint`
-green, `npm test` green (62/62). Live Foundations run on `wayne-14e/Verdict` (36 files /
-131,674 chars): lessons1 returned 3 lessons in 1 attempt / 39s, lessons2 returned 3 more in
-1 attempt / 20s; all 6 stored lessons have 3 quiz questions, 3–4 real codeRefs and 6–9 real
-paths cited in prose; stage became `ready` with `lessonCount: 6`. A wrong quiz submission
-stored `passed:false` and awarded 0 XP; a correct retry stored `passed:true` and moved
-`users.totalXp` 0 → 20; a second pass stayed at 20. The lesson page rendered 4 shiki blocks,
-no `correctIndex` in the HTML, and `/learn` showed “1 of 6 lessons passed”. Route checks:
-401 without a cookie, 404 for another owner, 409 on a project already `ready`, 400 on an
-empty body. Previously verified 2026-11-18: architecture on `wayne-14e/Verdict` (6 layers,
-7 flow steps, 11 concepts, ~41s); 2026-11-13: live ingestion of `shadcn-ui/taxonomy`,
-`firebase/quickstart-js` and `vercel/next-learn`, plus the 3-project cap and auth redirects.
+green, `npm test` green (71/71). All 3 pathways (Architecture Map, Foundations Lessons,
+Debug & Learn) functional end-to-end. Previously verified 2026-11-19: Foundations live run on
+`wayne-14e/Verdict` (6 stored lessons, quiz grading, 20 XP + 50 bonus); 2026-11-18: architecture
+on `wayne-14e/Verdict` (6 layers, 7 flow steps, 11 concepts, ~41s); 2026-11-13: live ingestion of
+`shadcn-ui/taxonomy`, `firebase/quickstart-js` and `vercel/next-learn`.
 
 ### Build plan — executing phase by phase
 
@@ -90,7 +100,7 @@ empty body. Previously verified 2026-11-18: architecture on `wayne-14e/Verdict` 
 | 2 | M2 Ingestion ✅ | `createProject` (3-project cap), `/api/pipeline/ingest`, GitHub tree+contents, ingest filters/budget (unit-tested), stack detection (unit-tested), `snapshot/main`, `/projects/[id]` runner, project cards with stage badges | 3 real public repos ingest; `node_modules` never in snapshot; >300 KB skipped; unrecognizable stack fails with message |
 | 3 | M3 Architecture ✅ | `/api/pipeline/architecture`, prompts module, zod schemas, repair retry, `guidebook` doc, `/overview` page (layers, data flow, concepts, file chips, optional mermaid) | guidebook passes zod on a real repo; overview renders real layers |
 | 4 | M4 Foundations ✅ | `/api/pipeline/lessons1` + `lessons2`, `/learn` list + lesson page, shiki code blocks, `Quiz`, `completeLesson`, XP transaction, progress state | pass quiz → XP in `users/{uid}`; fail → no XP, retry allowed |
-| 5 | M5 Debug | `/api/debug/run`, symptom form + session list, session page (causes/fix steps/whyItWorks/quiz), `completeDebugSession` | real symptom → evidence files that exist in the snapshot |
+| 5 | M5 Debug ✅ | `/api/debug/run`, symptom form + session list, session page (causes/fix steps/whyItWorks/quiz), `completeDebugSession` | real symptom → evidence files that exist in the snapshot |
 | 6 | M6 Polish | Badges, analytics events, `PipelineRunner` retry UX, error/empty states everywhere, rules deployed, Geko polish | full journey with zero console errors |
 | 7 | M7 Validation | vitest green, `next build` green, `docs/TEST_PLAN.md` mapping events → §1 metrics | 5-tester checklist ready |
 
@@ -107,13 +117,14 @@ empty body. Previously verified 2026-11-18: architecture on `wayne-14e/Verdict` 
   POST /api/pipeline/lessons2 → lessons part 2 (stage "ready" + lessonCount)
   completeLesson(projectId, lessonId, answers) server action → progress + XP transaction
   router.refresh() after each stage → server component re-renders progress
-  POST /api/debug/run (planned)
+  POST /api/debug/run(symptom) → debugSessions/{sid} + debug_created event
+  completeDebugSession(projectId, sid, answers) server action → progress + XP + bug-whisperer badge
 [Next.js server]
   server actions: signIn, signOut, createProject, completeLesson, completeDebugSession
-  route handlers: pipeline stages (idempotent, ≤60s), debug
-  lib: firebase/client (browser), firebase/admin (server), github, projects, llm,
-       prompts, lessons, quiz, domain/{project,architecture,lesson,progress},
-       pipeline/{ingest,stack,architecture,lessons}
+  route handlers: pipeline stages (idempotent, ≤60s), debug (/api/debug/run)
+  lib: firebase/client (browser), firebase/admin (server), github, projects, debug, llm,
+       prompts, lessons, quiz, domain/{project,architecture,lesson,progress,debug},
+       pipeline/{ingest,stack,architecture,lessons,debug,debug-runner}
 [Firestore]
   users/{uid}
   projects/{pid}
@@ -125,18 +136,19 @@ Routes as built: `/` (landing, signed-out only — a signed-in visitor is redire
 `/dashboard`), `/login`, `/dashboard` (guarded in `src/app/(app)/layout.tsx`),
 `/projects/[id]` (pipeline runner + guidebook hub or snapshot panel),
 `/projects/[id]/overview` (architecture pathway), `/projects/[id]/learn` (Foundations list),
-`/projects/[id]/learn/[lessonId]` (lesson + quiz), `/api/pipeline/ingest`,
-`/api/pipeline/architecture`, `/api/pipeline/lessons1`, `/api/pipeline/lessons2` (all POST),
-`not-found`, `error`. Planned: `/projects/[id]/debug`, `/api/debug/run`.
+`/projects/[id]/learn/[lessonId]` (lesson + quiz), `/projects/[id]/debug` (debug symptom form + session list),
+`/projects/[id]/debug/[sid]` (debug session walkthrough + quiz), `/api/pipeline/ingest`,
+`/api/pipeline/architecture`, `/api/pipeline/lessons1`, `/api/pipeline/lessons2`,
+`/api/debug/run` (all POST), `not-found`, `error`.
 
 Key modules as built: `src/lib/firebase/{config,client,admin}.ts`, `src/lib/auth/{session,users}.ts`,
-`src/lib/domain/{user,project,architecture,lesson,progress}.ts`,
+`src/lib/domain/{user,project,architecture,lesson,progress,debug}.ts`,
 `src/lib/pipeline/{ingest,stack,ingest-runner,architecture,architecture-runner,
-lessons,lessons-runner,lessons-route}.ts`,
-`src/lib/{github,projects,llm,prompts,lessons,quiz,code-language}.ts`, `src/lib/nav.ts`,
-`src/app/actions/{auth,projects,lessons}.ts`,
+lessons,lessons-runner,lessons-route,debug,debug-runner}.ts`,
+`src/lib/{github,projects,debug,llm,prompts,lessons,quiz,code-language}.ts`, `src/lib/nav.ts`,
+`src/app/actions/{auth,projects,lessons,debug}.ts`,
 `src/components/{brand,auth,app,projects}/*` (incl. `guidebook-parts.tsx`, `code-block.tsx`,
-`lesson-markdown.tsx`, `quiz.tsx`), `scripts/dev-session.mjs` (dev-only cookie minter).
+`lesson-markdown.tsx`, `quiz.tsx`, `debug-quiz.tsx`, `debug-symptom-form.tsx`), `scripts/dev-session.mjs` (dev-only cookie minter).
 
 Auth boundary: browser keeps the Firebase client session (for realtime Firestore reads);
 the server trusts only the httpOnly cookie, verified with `adminAuth().verifySessionCookie`.
@@ -183,7 +195,12 @@ As built through Phase 4 (all timestamps are epoch **milliseconds**, not Firesto
   debug: Record<sid, {completed, at}>, badges: string[], xp: number,
   pathwayBonusAwarded: boolean }`. **Deviation:** `pathwayBonusAwarded` is extra so the +50
   completion bonus is paid exactly once across retakes.
-- `projects/{pid}/debugSessions/{sid}` — not yet written (Phase 5).
+- `projects/{pid}/debugSessions/{sid}` — `{ id, projectId, symptom, status: 'pending'|'done'|'failed',
+  error: string|null, likelyCauses: [{ cause, evidenceFiles[], confidence: 'high'|'medium'|'low' }],
+  fixSteps: string[], whyItWorks: { concept, explanation }, quiz: [{ question, options[], correctIndex, why }],
+  gekoTip: string, xp: 30, createdAt, analyzedAt, model, promptVersion }`, validated by
+  `DebugSessionDocSchema`. Created as `pending` on `/api/debug/run`, updated to `done` or `failed`.
+  `evidenceFiles` always contain real snapshot paths.
 
 ## Env & Secrets
 
@@ -194,7 +211,7 @@ Names only; values live in `.env.local` (gitignored) and the host dashboard.
 | `NEXT_PUBLIC_APP_URL` | metadata base, auth redirect sanity |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` / `_AUTH_DOMAIN` / `_PROJECT_ID` / `_STORAGE_BUCKET` / `_MESSAGING_SENDER_ID` / `_APP_ID` | browser Firebase config |
 | `FIREBASE_SERVICE_ACCOUNT` | server only — firebase-admin credential, one-line JSON |
-| `DEEPSEEK_API_KEY` | server only — `src/lib/llm.ts` (architecture + lessons stages; debug later), sent to `https://api.deepseek.com` |
+| `DEEPSEEK_API_KEY` | server only — `src/lib/llm.ts` (architecture, lessons, and debug stages), sent to `https://api.deepseek.com` |
 | `DEEPSEEK_MODEL` | optional model override, default `deepseek-flash` (DeepSeek-V4.1-Flash) |
 | `DEEPSEEK_BASE_URL` | optional endpoint override, default `https://api.deepseek.com` |
 | `GITHUB_TOKEN` | optional, raises GitHub anonymous limit 60 req/h (used by `src/lib/github.ts`) |
@@ -210,9 +227,9 @@ Prompts live in `src/lib/prompts.ts` only. Version constant + last change:
 |---|---|---|---|
 | `architecture-v1` | architecture | 2026-11-18 | System rules (plain English, real paths, JSON only, Geko voice) + user prompt built from stack, the exact allowed path list and the snapshot contents (150k-char budget; omitted files are named). Demands 3–7 layers, 4–8 flow steps and 5–12 concepts. |
 | `lessons-v1` | lessons1 / lessons2 | 2026-11-19 | One system prompt, one builder with a `part` switch. Part 1 asks 3–5 opening lessons; part 2 receives the stored part-1 titles/goals/ids and asks for the remainder (2–5) so the pathway totals 6–10 and ends with “how to debug here”. Demands 250–500-word markdown explains with ≥2 distinct real paths, 1–4 real codeRefs, Geko tip and 2–3 codebase-specific quiz questions. Snapshot budget 120k chars; omitted files are named. |
+| `debug-v1` | debug | 2026-11-19 | System rules + user prompt built from stack, guidebook architecture summary, user symptom text, allowed snapshot paths, and the top-10 keyword-matched file contents (80k budget; omitted files are named). Demands 2–3 likely causes with real evidenceFiles, 3–7 concrete fix steps naming real paths, whyItWorks fundamental concept explanation, 1–2 codebase-specific quiz questions, and a Geko tip. |
 
-`debug-v1` (Phase 5) is not written yet. Every prompt change =
-version bump + this table + a Decisions Log entry.
+Every prompt change = version bump + this table + a Decisions Log entry.
 
 ## Decisions Log
 
@@ -394,10 +411,55 @@ Append-only. Newest last.
 - **2026-11-19 — `requestStructured` accepts an `invalidOutputMessage`.** The shared retry
   loop used to say the model returned an invalid “map”; the lessons stage now supplies its own
   wording. Rejected: duplicating the retry/JSON/validation loop in the lesson runner.
+- **2026-11-19 — Pure keyword overlap matching for top-10 debug files.** BLUEPRINT §6 requires
+  top-10 files matched by keyword overlap between symptom and file paths/contents as a pure function.
+  Heuristic tokenizes the symptom, strips common English stop words, weights path segment/basename
+  matches heavily (+20/+10), and bounds content term frequencies (max +10 per keyword). If fewer than
+  10 files match, it supplements up to 10 files using the snapshot's priority-ordered files so the
+  model always receives core architecture context. Rejected: full-text search engine / vector embedding
+  (out of scope for MVP).
+- **2026-11-19 — Debug pathway awards 30 XP and "bug-whisperer" badge inside a transaction.**
+  `completeDebugSession` validates quiz answers on the server (≥70% pass). On first completion, awards
+  30 XP to `users.totalXp` and `progress.xp`. If the user does not yet possess the `"bug-whisperer"`
+  badge (BLUEPRINT §7), it awards it to both `progress.badges` and `users/{uid}.badges` in the same
+  transaction and logs `debug_completed`. Retakes preserve earlier XP and completion status.
+- **2026-11-19 — Evidence files render expandable `<CodeBlock>` previews.** For each evidence file
+  cited in `likelyCauses`, the session view resolves the content from `snapshot.files` and renders an
+  interactive, syntax-highlighted shiki `<CodeBlock>` with "Open on GitHub" links, letting the user
+  view real code directly on the session page.
+- **2026-11-19 — Separation of pure debug logic (`debug.ts`) and runner (`debug-runner.ts`).**
+  Follows the design of `architecture.ts`/`architecture-runner.ts` and `lessons.ts`/`lessons-runner.ts`.
+  Keeps `src/lib/pipeline/debug.ts` pure and unit-testable without pulling `server-only` into client or
+  test bundles.
 
 ## Change Log
 
 Newest last.
+
+- **2026-11-19 — Phase 5: Debug & Learn pathway (symptom run, session walkthrough, evidence code blocks, quiz, XP, badge).**
+  Files: `src/lib/domain/debug.ts`, `src/lib/debug.ts`, `src/lib/prompts.ts`, `src/lib/pipeline/{debug.ts,debug-runner.ts,debug.test.ts}`,
+  `src/app/api/debug/run/route.ts`, `src/app/actions/debug.ts`, `src/components/projects/{debug-symptom-form.tsx,debug-quiz.tsx}`,
+  `src/app/(app)/projects/[id]/{page.tsx,debug/page.tsx,debug/[sid]/page.tsx}`, `src/components/projects/pipeline-runner.tsx`,
+  `PROJECT_CONTEXT.md`.
+  Why: Delivers the second core pathway from BLUEPRINT §1/§6/§8/§9. Vibe-coders facing context walls and breakages can
+  describe errors/symptoms, inspect AI-identified root causes backed by real snapshot code, follow concrete fix steps,
+  learn the underlying concept, and pass a quiz to prove mastery.
+  What:
+  - Domain: `DebugSessionDocSchema`, `LikelyCauseSchema`, `WhyItWorksSchema`, `DebugModelSchema`, `DebugSessionContentSchema`, `DEBUG_LIMITS`.
+  - Storage: `src/lib/debug.ts` for Firestore collection queries and `debugSessions/{sid}`.
+  - Pipeline: `matchFilesBySymptom` pure function (unit-tested in `debug.test.ts`), `normalizeDebugOutput` auditing evidence
+    files and backticked paths against the snapshot, `debug-v1` prompt in `src/lib/prompts.ts`, and `runDebugAnalysis` in `src/lib/pipeline/debug-runner.ts`.
+  - Route: `/api/debug/run` creates `pending` session, runs analysis with retry repair, updates to `done`/`failed`, and logs `debug_created` event.
+  - Server Action: `completeDebugSession` grades quiz (≥70%), writes progress `debug[sid] = { completed: true, at }`, awards 30 XP on first
+    pass, unlocks `"bug-whisperer"` badge on first completed debug session, and records `debug_completed` event in a transaction.
+  - UI: `/projects/[id]/debug` symptom form with suggestion chips + session history; `/projects/[id]/debug/[sid]` full session walkthrough
+    with confidence badges, `<CodeBlock>` evidence previews, fix steps, concept panel, and interactive `<DebugQuiz>`; `/projects/[id]`
+    ReadyPanel updated to show all 3 pathways.
+  Verify: `npm test` (71/71 pass), `npx tsc --noEmit` clean, `npm run lint` clean, `next build` clean.
+  Navigate to `/projects/[id]` -> ReadyPanel shows 3 pathway cards (Architecture Map, Foundations Lessons, Debug & Learn). Click "Open debug"
+  -> loads `/projects/[id]/debug`. Enter a symptom or click an example chip and submit -> redirects to `/projects/[id]/debug/[sid]`.
+  Verify root causes with evidence code blocks, fix checklist, why-it-works concept panel, Geko tip, and `<DebugQuiz>`. Submit quiz -> awards
+  30 XP and unlocks "Bug Whisperer" badge on the first completed session.
 
 - **2026-11-19 — Phase 4: Foundations pathway (lessons, learn pages, quiz, XP).**
   Files: `src/lib/domain/{lesson,progress}.ts`, `src/lib/{quiz,code-language,lessons}.ts`,
@@ -517,17 +579,17 @@ Older entries, one line each (full detail in git history):
   (`treeTruncated`) but does not surface it in the UI yet; selection still works on the
   entries that did arrive, so a truncated tree only means files are missing, never that the
   snapshot is invalid.
-- **FIXED 2026-11-19 — The runner stopped after the architecture map.** It now runs
-  ingest → architecture → lessons1 → lessons2 sequentially; only the debug pathway remains a
-  disabled placeholder (Phase 5).
+- **FIXED 2026-11-19 — The debug pathway was a placeholder.** Full Debug & Learn pathway is
+  now live at `/projects/[id]/debug` and `/projects/[id]/debug/[sid]`, backed by `/api/debug/run`
+  and `completeDebugSession` (see Change Log 2026-11-19).
 - **Stage progress still uses `router.refresh()`, not `onSnapshot`.** Snapshot, guidebook and
   lesson progress are read once per server render; the realtime listener stays Backlog until
   more stages need streaming progress.
 - **A project cannot be removed.** The 3-project cap counts every project, including ones
   stuck in `failed:*`, so a QA account that fails three times is locked out of connecting
   more repos. Removal/reconnect ships with the project settings entry (see Backlog).
-- Landing page copy describes the debug pathway before it is clickable (Phase 5); the
-  architecture map and Foundations lessons are live.
+- **FIXED 2026-11-19 — Landing page described the debug pathway before it was live.** All three
+  pathways (Architecture Map, Foundations Lessons, and Debug & Learn) are now live and clickable.
 - **FIXED 2026-11-13 — Dashboard “Connect a repository” was disabled until Phase 2.**
   The connect form now creates a project and the project page runs ingestion.
 - **FIXED 2026-11-13 — No dark theme.** Superseded by the design reversal: the product is

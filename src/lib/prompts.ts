@@ -1,4 +1,5 @@
 import type { GuidebookDoc } from "@/lib/domain/architecture";
+import { DEBUG_LIMITS } from "@/lib/domain/debug";
 import type { LessonDoc, Part } from "@/lib/domain/lesson";
 import { lessonPartLimits } from "@/lib/domain/lesson";
 import type { SnapshotFile, Stack } from "@/lib/domain/project";
@@ -11,6 +12,7 @@ import { ARCHITECTURE_LIMITS } from "@/lib/domain/architecture";
 
 export const ARCHITECTURE_PROMPT_VERSION = "architecture-v1";
 export const LESSONS_PROMPT_VERSION = "lessons-v1";
+export const DEBUG_PROMPT_VERSION = "debug-v1";
 
 /**
  * Voice rules shared by every stage. BLUEPRINT §6 + §10: plain English, short sentences,
@@ -303,4 +305,125 @@ HARD CONSTRAINTS
 - No generic tutorial content. No emojis. No hype words. Do not output an xp field.`;
 
   return { prompt, includedFiles, includedChars, allowedCount };
+}
+
+/** Debug pathway budget for the top matched files. */
+export const MAX_DEBUG_FILE_CHARS = 80_000;
+
+export const DEBUG_SYSTEM_PROMPT = `You are Gekonstruct's debugging mentor. You explain and teach bugs in the user's own codebase, narrated for a vibe-coder who built the project with AI and needs to understand how to fix it safely without breaking other files.
+
+${VOICE_RULES}
+
+You explain and teach — you do NOT rewrite or auto-fix their code. Ground every cause, fix step and concept in the real files provided.
+
+Return only the JSON object. No prose before or after it.`;
+
+export type DebugPromptInput = {
+  owner: string;
+  repo: string;
+  symptom: string;
+  stack: Stack | null;
+  guidebook: GuidebookDoc;
+  matchedFiles: SnapshotFile[];
+  allowedPaths: string[];
+};
+
+export function buildDebugUserPrompt(input: DebugPromptInput): {
+  prompt: string;
+  includedFiles: number;
+  includedChars: number;
+} {
+  const stackLines = input.stack
+    ? STACK_LABELS.flatMap(([key, label]) => {
+        const value = input.stack?.[key];
+        return value ? [`- ${label}: ${value}`] : [];
+      })
+    : [];
+
+  const pathList = input.allowedPaths.map((path) => `- ${path}`).join("\n");
+
+  const contents: string[] = [];
+  let includedChars = 0;
+  let includedFiles = 0;
+  const skipped: string[] = [];
+
+  for (const file of input.matchedFiles) {
+    if (includedChars + file.content.length > MAX_DEBUG_FILE_CHARS) {
+      skipped.push(file.path);
+      continue;
+    }
+    contents.push(`### ${file.path}\n${file.content}`);
+    includedChars += file.content.length;
+    includedFiles += 1;
+  }
+
+  const skippedLine =
+    skipped.length > 0
+      ? `\n${skipped.length} file(s) matched but were skipped to fit the budget: ${skipped.join(", ")}.`
+      : "";
+
+  const prompt = `PROJECT: ${input.owner}/${input.repo}
+
+DETECTED STACK
+${stackLines.length > 0 ? stackLines.join("\n") : "- unknown"}
+
+THE ARCHITECTURE MAP FOR THIS REPO
+${mapSummary(input.guidebook)}
+
+REPORTED BUG / SYMPTOM
+"""
+${input.symptom}
+"""
+
+ALLOWED FILE PATHS (the only paths you may reference in evidenceFiles or cite in prose)
+${pathList}
+
+MATCHED CODEBASE FILES
+${contents.join("\n\n")}${skippedLine}
+
+TASK
+Analyze the reported symptom in the context of THIS codebase. Explain the likely causes, provide actionable fix steps, teach the underlying engineering concept using their own files, and test their understanding with a short quiz.
+
+Return one JSON object with exactly this shape:
+
+{
+  "likelyCauses": [
+    {
+      "cause": "2-4 sentences explaining what in THIS codebase causes or contributes to this symptom. Mention real files in backticks.",
+      "evidenceFiles": ["real/path/from/the/list.ts"],
+      "confidence": "high"
+    }
+  ],
+  "fixSteps": [
+    "Step 1: Check real/path.ts in backticks and inspect ...",
+    "Step 2: Update ...",
+    "Step 3: Verify ..."
+  ],
+  "whyItWorks": {
+    "concept": "Name of the fundamental concept (e.g. Idempotency in Route Handlers)",
+    "explanation": "150-350 words in plain English teaching this fundamental engineering concept grounded in this codebase's files and architecture."
+  },
+  "quiz": [
+    {
+      "question": "A question testing understanding of THIS bug and how THIS codebase handles it.",
+      "options": ["plausible option", "plausible option", "plausible option"],
+      "correctIndex": 0,
+      "why": "Why the correct option is right based on this codebase."
+    }
+  ],
+  "gekoTip": "1-2 warm sentences in Geko's voice pointing at a real file."
+}
+
+HARD CONSTRAINTS
+- likelyCauses: ${DEBUG_LIMITS.likelyCauses.min}-${DEBUG_LIMITS.likelyCauses.max} items.
+  - Each item must have 1-4 evidenceFiles copied exactly from ALLOWED FILE PATHS.
+  - confidence must be "high", "medium", or "low".
+- fixSteps: ${DEBUG_LIMITS.fixSteps.min}-${DEBUG_LIMITS.fixSteps.max} concrete, actionable steps. Each step must reference at least one real path in backticks from ALLOWED FILE PATHS.
+- whyItWorks: concept is a clear title; explanation is 150-350 words of plain English referencing at least one allowed path in backticks.
+- quiz: ${DEBUG_LIMITS.quiz.min}-${DEBUG_LIMITS.quiz.max} questions. Each has 3-4 options, exactly one correct, and correctIndex is the 0-based index. Options must be plausible within this codebase, never jokes.
+- gekoTip: at most two sentences in Geko's voice pointing at a real file.
+- Never cite a path outside ALLOWED FILE PATHS. Never invent files.
+- Do not output an xp field.`;
+
+  return { prompt, includedFiles, includedChars };
 }

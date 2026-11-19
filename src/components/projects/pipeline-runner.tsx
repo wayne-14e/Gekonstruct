@@ -56,7 +56,7 @@ const STEPS: Array<{
 const FUTURE_STEPS = [
   {
     label: "Open the debug guide",
-    detail: "Symptom-led explanations · Phase 5",
+    detail: "Symptom-led explanations · Unlocked once ready",
   },
 ] as const;
 

@@ -5,9 +5,9 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  Bug,
   Check,
   ExternalLink,
-  FileCode2,
   Layers,
   Map,
   ShieldCheck,
@@ -19,7 +19,9 @@ import { StageBadge } from "@/components/projects/stage-badge";
 import { Button } from "@/components/ui/button";
 import { getUserProfile } from "@/lib/auth/users";
 import { requireUser } from "@/lib/auth/session";
+import { listDebugSessions } from "@/lib/debug";
 import type { GuidebookDoc } from "@/lib/domain/architecture";
+import type { DebugSessionDoc } from "@/lib/domain/debug";
 import type { LessonDoc } from "@/lib/domain/lesson";
 import type { ProjectStage, SnapshotDoc, Stack } from "@/lib/domain/project";
 import { countPassedLessons, emptyProgressDoc, type ProgressDoc } from "@/lib/domain/progress";
@@ -51,11 +53,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   if (!project) notFound();
 
-  const [snapshot, guidebook, lessons, progress] = await Promise.all([
+  const [snapshot, guidebook, lessons, progress, debugSessions] = await Promise.all([
     getSnapshot(project.id),
     getGuidebook(project.id),
     getLessons(project.id),
     getProgress(project.id, user.uid),
+    listDebugSessions(project.id),
   ]);
 
   const safeProgress: ProgressDoc = progress ?? emptyProgressDoc();
@@ -134,6 +137,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
               snapshot={snapshot}
               lessons={lessons}
               passedCount={passedCount}
+              debugSessions={debugSessions}
+              progress={safeProgress}
             />
           ) : (
             <div className="rounded-2xl border border-[#584211] bg-[#2b1f06] p-5 text-sm leading-relaxed text-[#ffd57a]">
@@ -194,17 +199,22 @@ function ReadyPanel({
   snapshot,
   lessons,
   passedCount,
+  debugSessions,
+  progress,
 }: {
   projectId: string;
   guidebook: GuidebookDoc;
   snapshot: SnapshotDoc | null;
   lessons: LessonDoc[];
   passedCount: number;
+  debugSessions: DebugSessionDoc[];
+  progress: ProgressDoc;
 }) {
   const layerCount = guidebook.architecture.layers.length;
   const conceptCount = guidebook.concepts.length;
   const stepCount = guidebook.architecture.dataFlow.length;
   const allPassed = lessons.length > 0 && passedCount === lessons.length;
+  const completedDebugCount = Object.values(progress.debug).filter((d) => d.completed).length;
   const learnLabel =
     passedCount === 0 ? "Start the lessons" : allPassed ? "Review the lessons" : "Continue learning";
 
@@ -231,11 +241,11 @@ function ReadyPanel({
 
       <dl className="mt-5 grid grid-cols-3 gap-3">
         <Stat label="Layers" value={layerCount.toLocaleString()} />
-        <Stat label="Lessons" value={lessons.length.toLocaleString()} />
-        <Stat label="Passed" value={`${passedCount}/${lessons.length}`} />
+        <Stat label="Lessons" value={`${passedCount}/${lessons.length}`} />
+        <Stat label="Debug solved" value={completedDebugCount.toLocaleString()} />
       </dl>
 
-      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="flex flex-col rounded-xl border border-border bg-[#0e141b] p-4">
           <div className="flex items-center gap-2">
             <Map className="size-4 text-primary" aria-hidden="true" />
@@ -243,11 +253,11 @@ function ReadyPanel({
           </div>
           <p className="mt-1.5 flex-1 text-sm leading-relaxed text-muted-foreground">
             {layerCount} layers, {stepCount} flow steps and {conceptCount} concepts from your
-            real files. Best for a quick orientation.
+            real files.
           </p>
           <Button asChild variant="outline" size="sm" className="mt-3 w-fit">
             <Link href={`/projects/${projectId}/overview`}>
-              Open the map
+              Open map
               <ArrowRight aria-hidden="true" />
             </Link>
           </Button>
@@ -256,17 +266,35 @@ function ReadyPanel({
         <div className="flex flex-col rounded-xl border border-[#1e5033] bg-[#0e2a1c] p-4">
           <div className="flex items-center gap-2">
             <BookOpen className="size-4 text-primary" aria-hidden="true" />
-            <p className="text-sm font-semibold text-foreground">Foundations lessons</p>
+            <p className="text-sm font-semibold text-foreground">Foundations</p>
           </div>
           <p className="mt-1.5 flex-1 text-sm leading-relaxed text-[#a9cbb8]">
-            {lessons.length} ordered lessons, each with a quiz and real code.{" "}
+            {lessons.length} ordered lessons with quizzes and real code.{" "}
             {allPassed
-              ? "You passed every lesson."
-              : `${passedCount} of ${lessons.length} passed so far.`}
+              ? "All passed."
+              : `${passedCount}/${lessons.length} passed.`}
           </p>
           <Button asChild size="sm" className="mt-3 w-fit">
             <Link href={`/projects/${projectId}/learn`}>
               {learnLabel}
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
+        </div>
+
+        <div className="flex flex-col rounded-xl border border-border bg-[#0e141b] p-4">
+          <div className="flex items-center gap-2">
+            <Bug className="size-4 text-primary" aria-hidden="true" />
+            <p className="text-sm font-semibold text-foreground">Debug & Learn</p>
+          </div>
+          <p className="mt-1.5 flex-1 text-sm leading-relaxed text-muted-foreground">
+            {debugSessions.length > 0
+              ? `${debugSessions.length} session(s) run. Find evidence files in your code, get fix directions and +30 XP.`
+              : "Symptom-led debugging. Find evidence files in your code, get fix directions and +30 XP."}
+          </p>
+          <Button asChild variant="outline" size="sm" className="mt-3 w-fit">
+            <Link href={`/projects/${projectId}/debug`}>
+              Open debug
               <ArrowRight aria-hidden="true" />
             </Link>
           </Button>
@@ -300,17 +328,6 @@ function ReadyPanel({
           </ul>
         </details>
       ) : null}
-
-      <div className="mt-5 rounded-xl border border-border bg-[#0e141b] p-4">
-        <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <FileCode2 className="size-4 text-primary" aria-hidden="true" />
-          Next build step
-        </p>
-        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-          The debug pathway arrives in Phase 5. It reuses this guidebook and the same
-          snapshot, so nothing needs to be re-read from GitHub.
-        </p>
-      </div>
     </section>
   );
 }

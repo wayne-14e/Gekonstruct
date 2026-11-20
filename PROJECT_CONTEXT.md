@@ -80,8 +80,8 @@ pass, grants the `"bug-whisperer"` badge on the first completed debug session (w
 `progress.badges` and `users/{uid}.badges`), and records `debug_completed` inside a single
 Firestore transaction. The project hub ReadyPanel renders all three pathways.
 
-**M6 Polish — done (2026-11-20).** All three badges are awarded once and shown on the profile
-and the project hub shelf. Firestore analytics now cover all eleven BLUEPRINT §13 events: map
+**M6 Polish — done (2026-11-20).** All three badges are awarded once and shown on the profile.
+Firestore analytics now cover all eleven BLUEPRINT §13 events: map
 sections report in as they are read (`overview_section_viewed`), lesson pages record
 `lesson_viewed`, and opening a project hub ≥24h after `analysis_ready` writes `return_visit`
 once. `foundation-builder` is awarded in the lesson transaction, `map-reader` in the overview
@@ -123,6 +123,14 @@ verified 2026-11-19: Foundations live run on
 on `wayne-14e/Verdict` (6 layers, 7 flow steps, 11 concepts, ~41s); 2026-11-13: live ingestion of
 `shadcn-ui/taxonomy`, `firebase/quickstart-js` and `vercel/next-learn`.
 
+**M7 Validation — checklist and Telegram community footer ready (2026-11-20).**
+`docs/TEST_PLAN.md` maps the five-tester procedure and the Module 3 success metrics to
+stored analytics events. The footer exposes `@gekonstruct` and `@gekonstruct_chat`.
+M7 verification is complete at the code level: `npm test` passes 107 tests across 15 files,
+`npm run typecheck` is green, and `npm run build` produces the 20-route Next.js build.
+Live five-tester recruitment and metric collection remain a real-world validation step; do
+not replace missing tester results with synthetic events.
+
 ### Build plan — executing phase by phase
 
 | Phase | Milestone | Scope | Exit criteria |
@@ -134,7 +142,7 @@ on `wayne-14e/Verdict` (6 layers, 7 flow steps, 11 concepts, ~41s); 2026-11-13: 
 | 4 | M4 Foundations ✅ | `/api/pipeline/lessons1` + `lessons2`, `/learn` list + lesson page, shiki code blocks, `Quiz`, `completeLesson`, XP transaction, progress state | pass quiz → XP in `users/{uid}`; fail → no XP, retry allowed |
 | 5 | M5 Debug ✅ | `/api/debug/run`, symptom form + session list, session page (causes/fix steps/whyItWorks/quiz), `completeDebugSession` | real symptom → evidence files that exist in the snapshot |
 | 6 | M6 Polish ✅ | Badges, analytics events, `PipelineRunner` retry UX, error/empty states everywhere, rules deployed, Geko polish | full journey with zero console errors |
-| 7 | M7 Validation | vitest green, `next build` green, `docs/TEST_PLAN.md` mapping events → §1 metrics | 5-tester checklist ready |
+| 7 | M7 Validation ✅ | vitest green, `next build` green, `docs/TEST_PLAN.md` mapping events → §1 metrics | 5-tester checklist ready |
 
 ## Architecture Map
 
@@ -160,16 +168,16 @@ on `wayne-14e/Verdict` (6 layers, 7 flow steps, 11 concepts, ~41s); 2026-11-13: 
 [Next.js server]
   server actions: signIn, signOut, createProject, completeLesson, completeDebugSession,
                  markOverviewSectionViewed, markRequestStepUnderstood,
-                 updateDisplayName, clearUserProgress
+                 updateDisplayName, clearUserProgress, roastProjectAction
   route handlers: pipeline stages (idempotent, ≤60s), debug (/api/debug/run)
   lib: firebase/client (browser), firebase/admin (server), github, projects, debug, llm,
        prompts, lessons, quiz, badges, analytics,
-       domain/{project,architecture,lesson,progress,event,debug},
+       domain/{project,architecture,lesson,progress,event,debug,repo-roast},
        pipeline/{ingest,stack,architecture,lessons,debug,debug-runner}
 [Firestore]
   users/{uid}
   projects/{pid}
-  projects/{pid}/{snapshot/main, events/{eid}, guidebook/main, lessons/{lid},
+  projects/{pid}/{snapshot/main, repoRoast/main, events/{eid}, guidebook/main, lessons/{lid},
                  debugSessions/{sid}, progress/{uid}}
 ```
 
@@ -194,7 +202,8 @@ lessons,lessons-runner,lessons-route,debug,debug-runner}.ts`,
 `src/components/{brand,auth,app,projects}/*` (incl. `badge-shelf.tsx`, `pathway-nav.tsx`,
 `profile-actions.tsx`, `app-nav.tsx`, `project-progress-card.tsx`, `overview-tracker.tsx`,
 `request-flow.tsx`, `recent-activity-feed.tsx`, `guidebook-parts.tsx`, `code-block.tsx`,
-`lesson-markdown.tsx`, `quiz.tsx`, `debug-quiz.tsx`, `debug-symptom-form.tsx`), `scripts/dev-session.mjs` (dev-only cookie minter).
+`lesson-markdown.tsx`, `quiz.tsx`, `debug-quiz.tsx`, `debug-symptom-form.tsx`,
+`repo-roast.tsx`), `scripts/dev-session.mjs` (dev-only cookie minter).
 
 Auth boundary: browser keeps the Firebase client session (for realtime Firestore reads);
 the server trusts only the httpOnly cookie, verified with `adminAuth().verifySessionCookie`.
@@ -203,7 +212,8 @@ Route handlers and server actions call `getCurrentUser()`; pages of the `(app)` 
 
 Client/server boundary: server components by default; `"use client"` only for the sign-in
 button, account menu, route-aware app navigation, profile forms/confirmation dialog and
-progress sharing, connect form, pipeline runner, overview tracker, request walkthrough and quizzes.
+progress sharing, Repo Roast UI/sharing, connect form, pipeline runner, overview tracker,
+request walkthrough and quizzes.
 
 ## Data Model
 
@@ -227,6 +237,11 @@ As built through Phase 6 (all timestamps are epoch **milliseconds**, not Firesto
 - `projects/{pid}/snapshot/main` — `{ files: [{ path, size, content }], fetchedAt, totalChars,
   truncated: string[] }`. **Deviation:** the blueprint writes `projects/{pid}/snapshot`; Firestore
   needs a document id, so singleton docs use `main` (same for `guidebook/main`).
+- `projects/{pid}/repoRoast/main` — one successful roast per project. During generation it is
+  `{ status: "pending", reservationToken, reservedAt }`; on success it becomes
+  `{ status: "complete", quote, file, generatedAt, model, promptVersion }`. An atomic
+  reservation prevents concurrent model calls; a failed call releases the reservation so the
+  owner can retry, while a completed roast is returned on later requests and survives reloads.
 - `projects/{pid}/events/{eid}` — `{ type, at, meta }`, one of the eleven BLUEPRINT §13 types:
   `project_created`, `stage_completed` (ingest, architecture, lessons1, lessons2),
   `analysis_ready`, `overview_section_viewed`, `lesson_viewed`, `quiz_passed`, `quiz_failed`,
@@ -273,7 +288,7 @@ Names only; values live in `.env.local` (gitignored) and the host dashboard.
 | `NEXT_PUBLIC_APP_URL` | metadata base, auth redirect sanity |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` / `_AUTH_DOMAIN` / `_PROJECT_ID` / `_STORAGE_BUCKET` / `_MESSAGING_SENDER_ID` / `_APP_ID` | browser Firebase config |
 | `FIREBASE_SERVICE_ACCOUNT` | server only — firebase-admin credential, one-line JSON |
-| `DEEPSEEK_API_KEY` | server only — `src/lib/llm.ts` (architecture, lessons, and debug stages), sent to `https://api.deepseek.com` |
+| `DEEPSEEK_API_KEY` | server only — `src/lib/llm.ts` (architecture, lessons, debug, and Repo Roast), sent to `https://api.deepseek.com` |
 | `DEEPSEEK_MODEL` | optional model override, default `deepseek-flash` (DeepSeek-V4.1-Flash) |
 | `DEEPSEEK_BASE_URL` | optional endpoint override, default `https://api.deepseek.com` |
 | `GITHUB_TOKEN` | optional, raises GitHub anonymous limit 60 req/h (used by `src/lib/github.ts`) |
@@ -290,6 +305,7 @@ Prompts live in `src/lib/prompts.ts` only. Version constant + last change:
 | `architecture-v2` | architecture | 2026-11-20 | Architecture map copy now prefers one idea per sentence and scannable UI-ready mission, clue, evidence and trace language while retaining the real-path and JSON constraints. |
 | `lessons-v2` | lessons1 / lessons2 | 2026-11-20 | Foundations copy now prefers short, scannable, mission-ready explanations and keeps the existing 250–500-word and real-codeRef constraints. |
 | `debug-v2` | debug | 2026-11-20 | Debug copy now prefers compact suspect, evidence, fix and concept language so it can become a detective quest instead of a prose report. |
+| `roast-v1` | repo roast | 2026-11-20 | Generates one affectionate 8-30-word repo roast tied to exactly one real snapshot file. |
 
 Every prompt change = version bump + this table + a Decisions Log entry.
 
@@ -297,6 +313,24 @@ Every prompt change = version bump + this table + a Decisions Log entry.
 
 Append-only. Newest last.
 
+- **2026-11-20 — Add on-demand Repo Roast to project hubs.**
+  Repo Roast uses the stored snapshot and DeepSeek, validates exactly one sentence plus one
+  real file reference, and remains owner-only. Sharing creates a roast-branded PNG and uses
+  native sharing/text clipboard fallbacks like profile sharing. Rejected: making the roast a
+  public repo mutation and retaining the project-hub badges block (badges remain available on
+  the profile).
+- **2026-11-20 — Limit Repo Roast to one successful generation per project.**
+  Persist the verified roast in `repoRoast/main`; a Firestore transaction reserves generation
+  so simultaneous requests cannot spend multiple model calls. Later requests reuse the stored
+  roast, and failed model calls release their reservation to permit retry. Both social-image
+  types now use one shared card frame and the app's loaded Space Grotesk/JetBrains Mono fonts.
+  Rejected: keeping roasts only in client state (refresh would lose the result and bypass the
+  intended limit) and using system fonts (they did not match the product UI).
+- **2026-11-20 — Add Telegram community links to the shared footer.**
+  Gekonstruct's public Telegram channel is `@gekonstruct` and the vibe-coder feedback chat is
+  `@gekonstruct_chat`. The footer links both so visitors can follow updates and shape the
+  product. Rejected: linking only the channel (it gives too little direct feedback surface) or
+  introducing an external community widget/dependency (not needed for the MVP).
 - **2026-11-13 — Next 16 instead of 15.** BLUEPRINT §3 says "Next.js 15+"; installed
   16.4.6 (current stable) with React 19.3 and Tailwind 4.3. Rejected: pinning 15.x — no
   reason to start on an older major when App Router APIs used here are unchanged.
@@ -598,6 +632,72 @@ Append-only. Newest last.
 ## Change Log
 
 Newest first.
+
+- **2026-11-20 — Complete M7 validation readiness verification.**
+  Files: `docs/TEST_PLAN.md`, `PROJECT_CONTEXT.md`.
+  Why: make the five-tester run measurable from real Firestore events and remove ambiguity
+  around each Module 3 success threshold.
+  What: the tester worksheet now records the public repo/project, first and second pathways,
+  no-re-reading quiz passes, explanation recall and issues; the checklist defines event metadata
+  and explicit 3/5, 3/5 and 2/5 metric calculations.
+  Verify: `npm test` (107/107), `npm run typecheck`, `npm run build`, then run the
+  `docs/TEST_PLAN.md` procedure with five real grown-project testers.
+
+- **2026-11-20 — Enforce one Repo Roast per project and unify share-image styling.**
+  Files: `src/app/actions/projects.ts`, `src/app/(app)/projects/[id]/page.tsx`,
+  `src/components/projects/repo-roast.tsx`, `src/components/app/share-progress-button.tsx`,
+  `src/lib/domain/repo-roast{.ts,.test.ts}`, `src/lib/projects.ts`,
+  `src/lib/share-card.ts`, `src/lib/share-progress.ts`, `src/lib/share-roast.ts`,
+  `README.md`, `PROJECT_CONTEXT.md`.
+  Why: preserve one shareable roast per project across reloads, block repeat model calls, and
+  make both downloaded card types visually consistent with each other and the app.
+  What: generation uses an atomic Firestore reservation and stores its completed result;
+  project pages reload and display it with sharing still available. Both image generators use
+  a shared branded frame and load Space Grotesk/JetBrains Mono from the app's font styles.
+  Verify: generate a roast and reload the project; the quote remains and the roast action is
+  disabled. Download both card types and check matching frame/brand typography.
+
+- **2026-11-20 — Prevent share failures when native share or font loading is unavailable.**
+  Files: `src/lib/share-card.ts`, `src/components/app/share-progress-button.tsx`,
+  `src/components/projects/repo-roast.tsx`, `PROJECT_CONTEXT.md`.
+  Why: native sharing and explicit font fetches can reject with browser `NetworkError`.
+  What: use the app's computed font stacks after `document.fonts.ready` rather than blocking on
+  explicit font fetches; when a native share attempt fails, download the image and copy the
+  caption without making a second failing share request.
+  Verify: test both share actions in a browser where `navigator.share` is unavailable or rejects;
+  confirm the PNG downloads and caption fallback is reported.
+
+- **2026-11-20 — Replace starter README with product and setup guide.**
+  Files: `README.md`, `PROJECT_CONTEXT.md`.
+  Why: explain Gekonstruct's current learning pathways, Repo Roast, local setup, limits and
+  community to users and contributors.
+  What: document the actual feature set, Firebase/DeepSeek environment configuration,
+  development commands, read-only behavior, and tester checklist; include the LinkedIn tagline.
+  Verify: follow the documented setup against `.env.example` and confirm command names against
+  `package.json`.
+
+- **2026-11-20 — Add Repo Roast and project-hub sharing.**
+  Files: `src/app/(app)/projects/[id]/page.tsx`,
+  `src/components/projects/repo-roast.tsx`, `src/app/actions/projects.ts`,
+  `src/lib/pipeline/{roast.ts,roast-runner.ts,roast.test.ts}`, `src/lib/share-roast.ts`,
+  `src/lib/prompts.ts`, `PROJECT_CONTEXT.md`.
+  Why: let project owners get a specific, shareable affectionate roast based on their real
+  snapshot, and remove the redundant badges block from the project hub.
+  What: the detected-stack aside now includes an orange Repo Roast card. Geko generates one
+  verified-sentence roast with a real-file link; Share roast creates a branded PNG and uses
+  native sharing, download, or clipboard fallback.
+  Verify: open an ingested project, confirm the card appears below Detected stack, click
+  Roast my project, confirm the quote and file link are specific, then share the roast.
+
+- **2026-11-20 — Add Telegram community links and complete M7 checklist.**
+  Files: `src/components/app/site-footer.tsx`, `docs/TEST_PLAN.md`, `PROJECT_CONTEXT.md`.
+  Why: give vibe-coders direct update and feedback channels, and map M7's live 5-tester
+  acceptance metrics to stored analytics events.
+  What: the shared footer now links `@gekonstruct` and `@gekonstruct_chat` in a new tab,
+  with an inline Telegram icon and matching high-contrast lime buttons for both destinations;
+  `docs/TEST_PLAN.md` records the tester procedure and success targets.
+  Verify: open the landing page or any app shell, confirm both Telegram links, then use
+  `docs/TEST_PLAN.md` to collect five real tester results.
 
 - **2026-11-20 — Keep long Foundations quiz questions inside their cards.**
   Files: `src/components/projects/quiz.tsx`, `PROJECT_CONTEXT.md`.
@@ -995,6 +1095,10 @@ Older entries, one line each (full detail in git history):
 
 ## Known Issues
 
+- **FIXED 2026-11-20 — Share actions could surface browser `NetworkError`.**
+  Explicit `document.fonts.load` and retrying native share with text could fail in some
+  browsers. Share cards now wait for existing brand-font loading, and a failed native share
+  falls back once to download + caption clipboard (see Change Log 2026-11-20).
 - **FIXED 2026-11-20 — Long Foundations quiz questions could overflow their card.**
   The visible question now renders inside the fieldset instead of overlapping its border
   as a legend (see Change Log 2026-11-20).

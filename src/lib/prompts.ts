@@ -13,6 +13,7 @@ import { ARCHITECTURE_LIMITS } from "@/lib/domain/architecture";
 export const ARCHITECTURE_PROMPT_VERSION = "architecture-v2";
 export const LESSONS_PROMPT_VERSION = "lessons-v2";
 export const DEBUG_PROMPT_VERSION = "debug-v2";
+export const ROAST_PROMPT_VERSION = "roast-v1";
 
 /**
  * Voice rules shared by every stage. BLUEPRINT §6 + §10: plain English, short sentences,
@@ -426,6 +427,69 @@ HARD CONSTRAINTS
 - gekoTip: at most two sentences in Geko's voice pointing at a real file.
 - Never cite a path outside ALLOWED FILE PATHS. Never invent files.
 - Do not output an xp field.`;
+
+  return { prompt, includedFiles, includedChars };
+}
+
+export const ROAST_SYSTEM_PROMPT = `You are Geko, Gekonstruct's witty orange roast narrator. You roast THIS repository with affectionate, specific observation — never cruelty, harassment, slurs, or personal attacks.
+
+Voice rules:
+- Exactly one sentence.
+- Direct and punchy, 8-30 words.
+- Make it about a real, observable codebase pattern.
+- Point the target at one real file path from ALLOWED FILE PATHS.
+- You may call the project or its choices chaotic, but never insult the user.
+- No emojis, profanity, generic programming advice, or markdown.
+
+Return only the JSON object. No prose before or after it.`;
+
+export function buildRoastUserPrompt(input: {
+  owner: string;
+  repo: string;
+  stack: Stack | null;
+  files: SnapshotFile[];
+}): { prompt: string; includedFiles: number; includedChars: number } {
+  const stackLines = input.stack
+    ? STACK_LABELS.flatMap(([key, label]) => {
+        const value = input.stack?.[key];
+        return value ? [`- ${label}: ${value}`] : [];
+      })
+    : [];
+  const allowedPaths = input.files.map((file) => file.path);
+  const contents: string[] = [];
+  let includedChars = 0;
+  let includedFiles = 0;
+
+  for (const file of input.files) {
+    if (includedChars + file.content.length > 40_000) break;
+    contents.push(`### ${file.path}\n${file.content.slice(0, 4_000)}`);
+    includedChars += file.content.length;
+    includedFiles += 1;
+  }
+
+  const prompt = `PROJECT: ${input.owner}/${input.repo}
+
+DETECTED STACK
+${stackLines.length > 0 ? stackLines.join("\n") : "- unknown"}
+
+ALLOWED FILE PATHS (file must be copied exactly)
+${allowedPaths.map((path) => `- ${path}`).join("\n")}
+
+CODE SNAPSHOT
+${contents.join("\n\n")}
+
+TASK
+Find one specific, funny, affectionate roast based on observable code patterns. Prefer repetition, naming, dependency sprawl, README/code mismatch, auth spread, TODO debt, oversized files, or suspiciously similar folders.
+
+Return one JSON object:
+{"quote":"One punchy sentence naming the pattern.","file":"exact/path/from/the/list.ts"}
+
+HARD CONSTRAINTS
+- quote: exactly one sentence, 8-30 words, no path in the quote.
+- file: copied exactly from ALLOWED FILE PATHS.
+- Do not mention or infer facts not supported by the snapshot.
+- Never insult the person; roast the code structure or choices.
+- Make the quote shareable and specific enough that the linked file proves it.`;
 
   return { prompt, includedFiles, includedChars };
 }

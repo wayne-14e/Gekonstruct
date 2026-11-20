@@ -42,9 +42,10 @@ export function ShareProgressButton({
     setMessage(null);
     const text = buildProgressShareText({ displayName, totalXp, badges });
     let imageDownloaded = false;
+    let nativeShareFailed = false;
 
     try {
-      const image = createProgressShareImage({ displayName, totalXp, badges });
+      const image = await createProgressShareImage({ displayName, totalXp, badges });
       if (
         typeof navigator.share === "function" &&
         typeof navigator.canShare === "function" &&
@@ -60,14 +61,14 @@ export function ShareProgressButton({
           return;
         } catch (error) {
           if (isShareCancelled(error)) return;
-          console.error("image share failed", error);
+          nativeShareFailed = true;
         }
       }
 
       downloadImage(image);
       imageDownloaded = true;
 
-      if (typeof navigator.share === "function") {
+      if (!nativeShareFailed && typeof navigator.share === "function") {
         try {
           await navigator.share({ title: "My Gekonstruct progress", text });
           setMessage({
@@ -83,7 +84,6 @@ export function ShareProgressButton({
             });
             return;
           }
-          console.error("text share failed", error);
         }
       }
 

@@ -2,6 +2,10 @@ import "server-only";
 
 import { GuidebookDocSchema, type GuidebookDoc } from "@/lib/domain/architecture";
 import {
+  CompletedRepoRoastSchema,
+  type CompletedRepoRoast,
+} from "@/lib/domain/repo-roast";
+import {
   ProjectDocSchema,
   SnapshotDocSchema,
   type ProjectDoc,
@@ -26,6 +30,10 @@ export function snapshotDocRef(projectId: string) {
 /** Same singleton rule as the snapshot: `projects/{pid}/guidebook/main`. */
 export function guidebookDocRef(projectId: string) {
   return projectDocRef(projectId).collection("guidebook").doc("main");
+}
+
+export function repoRoastDocRef(projectId: string) {
+  return projectDocRef(projectId).collection("repoRoast").doc("main");
 }
 
 function toRecord(id: string, data: unknown): ProjectRecord | null {
@@ -68,5 +76,13 @@ export async function getGuidebook(projectId: string): Promise<GuidebookDoc | nu
   if (!snap.exists) return null;
 
   const parsed = GuidebookDocSchema.safeParse(snap.data());
+  return parsed.success ? parsed.data : null;
+}
+
+export async function getRepoRoast(projectId: string): Promise<CompletedRepoRoast | null> {
+  const snap = await repoRoastDocRef(projectId).get();
+  if (!snap.exists) return null;
+
+  const parsed = CompletedRepoRoastSchema.safeParse(snap.data());
   return parsed.success ? parsed.data : null;
 }

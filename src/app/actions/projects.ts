@@ -1,11 +1,23 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { MAX_PROJECTS, type ProjectDoc } from "@/lib/domain/project";
+import {
+  decideRepoRoastReservation,
+  RepoRoastRecordSchema,
+} from "@/lib/domain/repo-roast";
+import {
+  MAX_PROJECTS,
+  ProjectDocSchema,
+  SnapshotDocSchema,
+  type ProjectDoc,
+} from "@/lib/domain/project";
 import { getCurrentUser } from "@/lib/auth/session";
 import { adminDb } from "@/lib/firebase/admin";
 import { normalizeRepoUrl, parseRepoUrl } from "@/lib/pipeline/ingest";
+import { repoRoastDocRef } from "@/lib/projects";
+import { runRepoRoast } from "@/lib/pipeline/roast-runner";
 
 export type CreateProjectResult =
   | { ok: true; projectId: string }
@@ -13,6 +25,10 @@ export type CreateProjectResult =
 
 export type DeleteProjectResult =
   | { ok: true }
+  | { ok: false; error: string };
+
+export type RoastProjectResult =
+  | { ok: true; quote: string; file: string }
   | { ok: false; error: string };
 
 const RepoUrlInputSchema = z.string().trim().min(1).max(300);
@@ -108,5 +124,119 @@ export async function deleteProjectAction(projectIdInput: unknown): Promise<Dele
   } catch (error) {
     console.error("deleteProjectAction failed", error);
     return { ok: false, error: "We couldn't delete the project. Please try again." };
+  }
+}
+
+export async function roastProjectAction(projectIdInput: unknown): Promise<RoastProjectResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Sign in to roast this project." };
+
+  const parsedId = ProjectIdSchema.safeParse(projectIdInput);
+  if (!parsedId.success) return { ok: false, error: "This project could not be identified." };
+
+  try {
+    const projectRef = adminDb().collection("projects").doc(parsedId.data);
+    const roastRef = repoRoastDocRef(parsedId.data);
+    const projectSnap = await projectRef.get();
+    if (!projectSnap.exists) return { ok: false, error: "This project no longer exists." };
+
+    const projectData = projectSnap.data();
+    if (projectData?.ownerUid !== user.uid) {
+      return { ok: false, error: "You can only roast projects you own." };
+    }
+
+    const snapshotSnap = await projectRef.collection("snapshot").doc("main").get();
+    if (!snapshotSnap.exists) {
+      return { ok: false, error: "Wait for the repository snapshot before roasting it." };
+    }
+
+    const parsedProject = ProjectDocSchema.safeParse(projectData);
+    const parsedSnapshot = SnapshotDocSchema.safeParse(snapshotSnap.data());
+    if (!parsedProject.success || !parsedSnapshot.success) {
+      return { ok: false, error: "This project's stored data is invalid. Reconnect the repository." };
+    }
+
+    const reservationToken = randomUUID();
+    const reservedAt = Date.now();
+    const reservation = await adminDb().runTransaction(async (transaction) => {
+      const roastSnap = await transaction.get(roastRef);
+      const decision = decideRepoRoastReservation(
+        roastSnap.exists ? roastSnap.data() : undefined,
+        reservedAt,
+      );
+
+      if (decision.kind === "complete") return decision;
+      if (decision.kind !== "claim") return decision;
+
+      transaction.set(roastRef, {
+        status: "pending",
+        reservationToken,
+        reservedAt,
+      });
+      return decision;
+    });
+
+    if (reservation.kind === "complete") {
+      return {
+        ok: true,
+        quote: reservation.roast.quote,
+        file: reservation.roast.file,
+      };
+    }
+    if (reservation.kind === "busy") {
+      return { ok: false, error: "Geko is already roasting this project. Try again shortly." };
+    }
+    if (reservation.kind === "invalid") {
+      return { ok: false, error: "This project's saved roast data is invalid." };
+    }
+
+    try {
+      const result = await runRepoRoast({
+        owner: parsedProject.data.owner,
+        repo: parsedProject.data.repo,
+        stack: parsedProject.data.stack,
+        snapshot: parsedSnapshot.data,
+      });
+      const completedAt = Date.now();
+      const completedRoast = {
+        status: "complete" as const,
+        quote: result.roast.quote,
+        file: result.roast.file,
+        generatedAt: completedAt,
+        model: result.model,
+        promptVersion: result.promptVersion,
+      };
+
+      await adminDb().runTransaction(async (transaction) => {
+        const roastSnap = await transaction.get(roastRef);
+        const current = RepoRoastRecordSchema.safeParse(roastSnap.data());
+        if (
+          !current.success ||
+          current.data.status !== "pending" ||
+          current.data.reservationToken !== reservationToken
+        ) {
+          throw new Error("Repo Roast reservation was lost before completion.");
+        }
+        transaction.set(roastRef, completedRoast);
+      });
+
+      return { ok: true, quote: completedRoast.quote, file: completedRoast.file };
+    } catch (error) {
+      await adminDb().runTransaction(async (transaction) => {
+        const roastSnap = await transaction.get(roastRef);
+        const current = RepoRoastRecordSchema.safeParse(roastSnap.data());
+        if (
+          current.success &&
+          current.data.status === "pending" &&
+          current.data.reservationToken === reservationToken
+        ) {
+          transaction.delete(roastRef);
+        }
+      });
+      throw error;
+    }
+  } catch (error) {
+    console.error("roastProjectAction failed", error);
+    return { ok: false, error: "Geko couldn't finish the roast. Try again." };
   }
 }

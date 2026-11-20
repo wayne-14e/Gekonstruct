@@ -14,16 +14,16 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { GekoAvatar } from "@/components/brand/geko-avatar";
-import { BadgeShelf } from "@/components/app/badge-shelf";
 import { XpBadge } from "@/components/app/xp-badge";
 import { PathwayNav } from "@/components/projects/pathway-nav";
 import { PipelineRunner } from "@/components/projects/pipeline-runner";
+import { RepoRoast } from "@/components/projects/repo-roast";
 import { StageBadge } from "@/components/projects/stage-badge";
 import { Button } from "@/components/ui/button";
 import { recordReturnVisit } from "@/lib/analytics";
 import { getUserProfile } from "@/lib/auth/users";
 import { requireUser } from "@/lib/auth/session";
-import { BADGE_COUNT, earnedBadgeCount, uniqueBadgeList } from "@/lib/badges";
+import { getRepoRoast } from "@/lib/projects";
 import { listDebugSessions } from "@/lib/debug";
 import type { GuidebookDoc } from "@/lib/domain/architecture";
 import type { DebugSessionDoc } from "@/lib/domain/debug";
@@ -60,16 +60,16 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   after(() => recordReturnVisit(project.id).catch(() => undefined));
 
-  const [snapshot, guidebook, lessons, progress, debugSessions] = await Promise.all([
+  const [snapshot, guidebook, lessons, progress, debugSessions, repoRoast] = await Promise.all([
     getSnapshot(project.id),
     getGuidebook(project.id),
     getLessons(project.id),
     getProgress(project.id, user.uid),
     listDebugSessions(project.id),
+    getRepoRoast(project.id),
   ]);
 
   const safeProgress: ProgressDoc = progress ?? emptyProgressDoc();
-  const badges = uniqueBadgeList([...(profile?.badges ?? []), ...safeProgress.badges]);
   const passedCount = countPassedLessons(safeProgress, lessons);
   // A project that has moved past a stage but is missing that stage's output is broken
   // state, so send the runner back to the earliest missing step instead of showing an
@@ -177,15 +177,13 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
             </section>
           ) : null}
 
-          <section className="rounded-2xl border border-border bg-card p-5">
-            <div className="flex items-center justify-between gap-2">
-              <p className="label-mono">Badges</p>
-              <span className="font-mono text-[0.6875rem] text-muted-foreground tabular-nums">
-                {earnedBadgeCount(badges)}/{BADGE_COUNT}
-              </span>
-            </div>
-            <BadgeShelf badges={badges} compact className="mt-3" />
-          </section>
+          <RepoRoast
+            projectId={project.id}
+            projectTitle={project.title}
+            repoUrl={project.repoUrl}
+            hasSnapshot={snapshot !== null}
+            initialRoast={repoRoast}
+          />
 
           <section className="rounded-2xl border border-border bg-card p-5">
             <div className="flex items-center gap-2">

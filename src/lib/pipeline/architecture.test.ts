@@ -283,7 +283,7 @@ describe("buildArchitectureUserPrompt", () => {
       files,
     });
 
-    expect(ARCHITECTURE_PROMPT_VERSION).toBe("architecture-v1");
+    expect(ARCHITECTURE_PROMPT_VERSION).toBe("architecture-v2");
     expect(prompt).toContain("PROJECT: acme/widget");
     expect(prompt).toContain("- framework: next");
     expect(prompt).toContain("- app/page.tsx");

@@ -106,7 +106,11 @@ mac-style red/yellow/green dots, followed by the pathways, how-it-works and clos
 Signed-in visitors are redirected to `/dashboard`; signing out returns them to `/`.
 
 Last verified: 2026-11-20 — `npm run build`, `npx tsc --noEmit`, `npm run lint`, and
-`npm test` green (95/95). Profile sharing renders a branded PNG and uses native file sharing
+`npm test` green (95/95). Architecture uses a snap-scrolling section pager, React Flow skill map,
+and request tracing;
+Foundations include mission beats, Monaco code tours, Git replay and Sandpack; Debug includes
+the detective board. The header includes Profile and the account popup labels Community as
+Coming soon. Projects include icon-only cascade deletion with confirmation. Profile sharing renders a branded PNG and uses native file sharing
 where supported, with download/caption fallback; the two-session quota is enforced with Admin
 SDK transactions. Its usage subcollection is unmatched by client Firestore rules, so no rules
 redeploy is required.
@@ -277,9 +281,9 @@ Prompts live in `src/lib/prompts.ts` only. Version constant + last change:
 
 | Version | Stage | Last changed | Notes |
 |---|---|---|---|
-| `architecture-v1` | architecture | 2026-11-18 | System rules (plain English, real paths, JSON only, Geko voice) + user prompt built from stack, the exact allowed path list and the snapshot contents (150k-char budget; omitted files are named). Demands 3–7 layers, 4–8 flow steps and 5–12 concepts. |
-| `lessons-v1` | lessons1 / lessons2 | 2026-11-19 | One system prompt, one builder with a `part` switch. Part 1 asks 3–5 opening lessons; part 2 receives the stored part-1 titles/goals/ids and asks for the remainder (2–5) so the pathway totals 6–10 and ends with “how to debug here”. Demands 250–500-word markdown explains with ≥2 distinct real paths, 1–4 real codeRefs, Geko tip and 2–3 codebase-specific quiz questions. Snapshot budget 120k chars; omitted files are named. |
-| `debug-v1` | debug | 2026-11-19 | System rules + user prompt built from stack, guidebook architecture summary, user symptom text, allowed snapshot paths, and the top-10 keyword-matched file contents (80k budget; omitted files are named). Demands 2–3 likely causes with real evidenceFiles, 3–7 concrete fix steps naming real paths, whyItWorks fundamental concept explanation, 1–2 codebase-specific quiz questions, and a Geko tip. |
+| `architecture-v2` | architecture | 2026-11-20 | Architecture map copy now prefers one idea per sentence and scannable UI-ready mission, clue, evidence and trace language while retaining the real-path and JSON constraints. |
+| `lessons-v2` | lessons1 / lessons2 | 2026-11-20 | Foundations copy now prefers short, scannable, mission-ready explanations and keeps the existing 250–500-word and real-codeRef constraints. |
+| `debug-v2` | debug | 2026-11-20 | Debug copy now prefers compact suspect, evidence, fix and concept language so it can become a detective quest instead of a prose report. |
 
 Every prompt change = version bump + this table + a Decisions Log entry.
 
@@ -563,10 +567,114 @@ Append-only. Newest last.
   The page lists no projects and adds no submission, remix, waitlist or marketplace behavior.
   This is an explicit exception to BLUEPRINT's out-of-scope social features. Rejected: mock
   listings that could imply the marketplace is already open.
+- **2026-11-20 — All learning styles become first-class pathways.** The Architecture Map uses
+  React Flow, snap-scrolling sections and a trace mode; Foundations use mission beats,
+  Monaco-guided code tours, Git commit replay and a Sandpack sandbox; Debug uses a suspect-and-
+  evidence detective board. Existing lesson content, Firestore progress and server-side quiz
+  grading remain unchanged. Rejected: hiding any mode behind a paid flag or replacing real
+  repository evidence with synthetic tutorial code.
+- **2026-11-20 — Added visual-interaction dependencies.** Added `@xyflow/react`,
+  `@monaco-editor/react`, and `@codesandbox/sandpack-react`.
+  React Flow owns the interactive architecture graph; Monaco and Sandpack provide guided code
+  and browser sandboxes; GitHub's commit API
+  powers time-travel. Rejected: Gource, CodeCharta and GitDiagram as brittle or restyled
+  third-party products.
 
 ## Change Log
 
 Newest first.
+
+- **2026-11-20 — Replace Architecture horizontal strip with active-only sections.**
+  Files: `src/components/projects/overview-pager.tsx`, `PROJECT_CONTEXT.md`.
+  Why: a measured flex strip could still preserve the largest slide or stale height state,
+  leaving blank space below short sections.
+  What: the overview now renders only the active section, so its natural height is the exact
+  carousel height. Direct tabs, Back/Next and horizontal touch swipes change the active section.
+  The previous height-measurement approach was removed.
+  Verify: open `/projects/[id]/overview`, switch among short and long sections and confirm
+  no blank vertical area remains below the active section.
+
+- **2026-11-20 — Make Architecture carousel height section-aware.**
+  Files: `src/components/projects/overview-pager.tsx`, `PROJECT_CONTEXT.md`.
+  Why: the horizontal flex carousel used the tallest slide's height for every section.
+  What: the pager now measures its active slide with `ResizeObserver` and sets the carousel
+  height to that slide, with a smooth height transition. Horizontal navigation and swipe
+  scrolling continue to update the active section and its measured height.
+  Verify: open `/projects/[id]/overview`, switch between a short and tall section and confirm
+  the carousel immediately or smoothly settles to the active section's height without
+  unnecessary blank space.
+
+- **2026-11-20 — Refine Architecture Map navigation and remove Code City.**
+  Files: `src/components/projects/architecture-explorer.tsx`,
+  `src/components/projects/architecture-trace.tsx`,
+  `src/components/projects/overview-pager.tsx`,
+  `src/app/(app)/projects/[id]/overview/page.tsx`, `package.json`,
+  `package-lock.json`, `PROJECT_CONTEXT.md`.
+  Why: Code City did not improve code understanding, and the long overview page made its
+  sections harder to use as a guided lesson.
+  What: the overview is now a Duolingo-style horizontal snap scroller with direct section
+  tabs and Back/Next controls. The skill map follows the project summary, uses flexible
+  node sizing, spans the full slide width, and shows selected-node details below it. Trace
+  appears after the request-flow section and before Concepts. Code City and its Three.js
+  dependencies were removed.
+  Verify: open `/projects/[id]/overview`, swipe or use the section tabs and Back/Next;
+  confirm the What, Skill map, Layers, Request, Trace and Concepts slides are accessible,
+  and skill-map text stays inside flexible nodes.
+
+- **2026-11-20 — Refine project card action and divider spacing.**
+  Files: `src/components/projects/project-progress-card.tsx`, `PROJECT_CONTEXT.md`.
+  Why: remove an unnecessary divider above the pathway cards and keep card footer actions
+  visually separate.
+  What: pathway progress cards no longer have a top horizontal line; the bottom card footer
+  retains a separator with extra spacing, and the icon-only delete button sits at the bottom
+  left immediately before the Updated text.
+  Verify: open `/projects` and confirm the pathway cards have no top divider, the bottom
+  divider has clear margins, and delete appears before Updated with no overlap on mobile.
+
+- **2026-11-20 — Add per-project deletion from the Projects page.**
+  Files: `src/app/actions/projects.ts`,
+  `src/components/projects/delete-project-button.tsx`,
+  `src/components/projects/project-progress-card.tsx`, `PROJECT_CONTEXT.md`.
+  Why: let owners recover the three-project cap without using profile-wide progress reset.
+  What: each project card has an icon-only trash button. It opens a confirmation dialog naming
+  the project and permanently deleting the project plus nested snapshot, guidebook, lesson,
+  progress, debug and analytics data. The server action verifies authentication and ownership
+  before recursively deleting the project.
+  Verify: open `/projects`, choose Delete on one owned card, cancel and confirm cancellation
+  leaves the project intact; reopen and confirm, then verify the project disappears and the
+  project owner can connect a replacement.
+
+- **2026-11-20 — Add Profile to header navigation and Community status badge.**
+  Files: `src/components/app/app-nav.tsx`, `src/components/app/user-menu.tsx`,
+  `PROJECT_CONTEXT.md`.
+  Why: make Profile easier to reach and clearly label Community as unavailable.
+  What: the signed-in desktop header now includes Dashboard, Projects and Profile with an
+  active state for `/profile`. The account popup keeps Community and adds an amber
+  "Coming soon" badge beside it.
+  Verify: sign in, confirm Profile appears in the header and active styling on `/profile`;
+  open the account menu and confirm the Community row shows the Coming soon badge.
+
+- **2026-11-20 — Add multi-style quest learning experiences.**
+  Files: `src/components/projects/architecture-explorer.tsx`,
+  `src/components/projects/code-city.tsx`, `src/components/projects/lesson-quest.tsx`,
+  `src/components/projects/monaco-tour.tsx`, `src/components/projects/git-time-travel.tsx`,
+  `src/components/projects/sandbox-quest.tsx`, `src/components/projects/debug-detective.tsx`,
+  `src/app/api/projects/[id]/history/route.ts`, `src/lib/github.ts`,
+  `src/app/(app)/projects/[id]/overview/page.tsx`,
+  `src/app/(app)/projects/[id]/learn/[lessonId]/page.tsx`,
+  `src/app/(app)/projects/[id]/debug/[sid]/page.tsx`, `src/lib/prompts.ts`,
+  `PROJECT_CONTEXT.md`.
+  Why: remove textbook-heavy surfaces and support visual, reading, tracing, replay,
+  sandbox and detective learning styles without weakening repository-grounded content.
+  What: the Architecture Map now has a snap-scrolling section pager, a full-width interactive
+  React Flow skill map and a dedicated request trace. Foundations now have short mission beats, Monaco code
+  highlighting, Git commit replay and a live Sandpack sandbox. Debug now starts with a
+  suspect/evidence detective board before the existing fix and quiz. Prompt versions were
+  bumped to v2 and all existing XP, badge and server grading behavior remains intact.
+  Verify: open a ready project → **Architecture** and exercise the section pager, skill map and Trace;
+  open a Foundation lesson and complete mission → code tour → evidence; confirm Git replay
+  loads commits and the sandbox preview renders. Open Debug & Learn, select a suspect,
+  inspect evidence, follow fix steps and complete the quiz.
 
 - **2026-11-20 — Add a Coming Soon Community page.**
   Files: `src/app/(app)/community/page.tsx`, `src/components/app/user-menu.tsx`,

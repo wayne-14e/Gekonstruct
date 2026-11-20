@@ -3,6 +3,7 @@ import { ArrowRight, Bug, FolderGit2, GraduationCap, Map } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StageBadge } from "@/components/projects/stage-badge";
+import { DeleteProjectButton } from "@/components/projects/delete-project-button";
 import type { ProjectRecord } from "@/lib/projects";
 import { stackChips } from "@/lib/pipeline/stack";
 
@@ -35,7 +36,9 @@ export function ProjectProgressCard({
         <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-[#1e5033] bg-[#0e2a1c] text-primary">
           <FolderGit2 className="size-[18px]" aria-hidden="true" />
         </span>
-        <StageBadge stage={project.stage} />
+        <div className="flex items-center gap-2">
+          <StageBadge stage={project.stage} />
+        </div>
       </div>
 
       <h2 className="mt-3 truncate text-lg font-semibold tracking-[-0.02em]">{project.title}</h2>
@@ -69,7 +72,7 @@ export function ProjectProgressCard({
         </p>
       )}
 
-      <div className="mt-5 grid gap-3 border-t border-border/70 pt-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <PathwayProgress
           icon={Map}
           label="Architecture map"
@@ -95,16 +98,21 @@ export function ProjectProgressCard({
         />
       </div>
 
-      <div className="mt-auto flex items-center justify-between gap-3 border-t border-border/70 pt-4">
-        <span className="font-mono text-[0.6875rem] text-muted-foreground">
-          Updated {formatDate(project.updatedAt)}
-        </span>
-        <Button asChild size="sm" variant="outline">
-          <Link href={`/projects/${project.id}`}>
-            Open
-            <ArrowRight aria-hidden="true" />
-          </Link>
-        </Button>
+      <div className="mt-4 border-t border-border/70 pt-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <DeleteProjectButton projectId={project.id} projectTitle={project.title} />
+            <span className="truncate font-mono text-[0.6875rem] text-muted-foreground">
+              Updated {formatDate(project.updatedAt)}
+            </span>
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/projects/${project.id}`}>
+              Open
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
+        </div>
       </div>
     </article>
   );

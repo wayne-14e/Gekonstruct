@@ -12,6 +12,7 @@ export function AppNav() {
   const pathname = usePathname();
   const dashboardActive = pathname === "/dashboard";
   const projectsActive = pathname === "/projects" || pathname.startsWith("/projects/");
+  const profileActive = pathname === "/profile";
 
   return (
     <>
@@ -28,6 +29,13 @@ export function AppNav() {
         className={projectsActive ? activeLinkClass : linkClass}
       >
         Projects
+      </Link>
+      <Link
+        href="/profile"
+        aria-current={profileActive ? "page" : undefined}
+        className={profileActive ? activeLinkClass : linkClass}
+      >
+        Profile
       </Link>
     </>
   );

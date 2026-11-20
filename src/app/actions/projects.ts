@@ -11,7 +11,12 @@ export type CreateProjectResult =
   | { ok: true; projectId: string }
   | { ok: false; error: string };
 
+export type DeleteProjectResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
 const RepoUrlInputSchema = z.string().trim().min(1).max(300);
+const ProjectIdSchema = z.string().trim().min(1).max(200);
 
 class ProjectLimitError extends Error {}
 
@@ -80,4 +85,28 @@ export async function createProject(repoUrlInput: string): Promise<CreateProject
 
   revalidatePath("/dashboard");
   return { ok: true, projectId: projectRef.id };
+}
+
+export async function deleteProjectAction(projectIdInput: unknown): Promise<DeleteProjectResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Sign in to delete a project." };
+
+  const parsedId = ProjectIdSchema.safeParse(projectIdInput);
+  if (!parsedId.success) return { ok: false, error: "This project could not be identified." };
+
+  try {
+    const projectRef = adminDb().collection("projects").doc(parsedId.data);
+    const projectSnap = await projectRef.get();
+    if (!projectSnap.exists) return { ok: false, error: "This project no longer exists." };
+    if (projectSnap.data()?.ownerUid !== user.uid) {
+      return { ok: false, error: "You can only delete projects you own." };
+    }
+
+    await adminDb().recursiveDelete(projectRef);
+    revalidatePath("/", "layout");
+    return { ok: true };
+  } catch (error) {
+    console.error("deleteProjectAction failed", error);
+    return { ok: false, error: "We couldn't delete the project. Please try again." };
+  }
 }

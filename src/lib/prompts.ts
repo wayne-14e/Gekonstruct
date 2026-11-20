@@ -10,9 +10,9 @@ import { ARCHITECTURE_LIMITS } from "@/lib/domain/architecture";
  * constant + update PROJECT_CONTEXT.md → Prompts + a Decisions Log entry.
  */
 
-export const ARCHITECTURE_PROMPT_VERSION = "architecture-v1";
-export const LESSONS_PROMPT_VERSION = "lessons-v1";
-export const DEBUG_PROMPT_VERSION = "debug-v1";
+export const ARCHITECTURE_PROMPT_VERSION = "architecture-v2";
+export const LESSONS_PROMPT_VERSION = "lessons-v2";
+export const DEBUG_PROMPT_VERSION = "debug-v2";
 
 /**
  * Voice rules shared by every stage. BLUEPRINT §6 + §10: plain English, short sentences,
@@ -23,7 +23,9 @@ const VOICE_RULES = `Voice rules for every human-readable field:
 - Every explanation must point at a real file path from ALLOWED FILE PATHS, written in backticks exactly as listed.
 - Talk about THIS repository only. No generic tutorial content, no imagined features.
 - If something is uncertain, say what is uncertain instead of inventing files or behaviour.
-- No emojis, no hype words, no markdown headings, no code fences inside strings.`;
+- No emojis, no hype words, no markdown headings, no code fences inside strings.
+- Prefer one idea per sentence and short, scannable paragraphs.
+- Write copy that can become a UI mission, clue, evidence card, or trace step.`;
 
 export const ARCHITECTURE_SYSTEM_PROMPT = `You are Gekonstruct's analysis engine. You turn a codebase into a teaching guidebook for the person who built it with AI but never learned to read it.
 

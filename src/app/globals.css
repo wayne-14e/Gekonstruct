@@ -263,6 +263,23 @@
   animation: geko-pop 0.35s cubic-bezier(0.3, 1.4, 0.5, 1) both;
 }
 
+.geko-guided-line {
+  background: rgba(91, 224, 0, 0.10);
+  border-left: 2px solid #5be000;
+}
+
+.geko-guided-glyph {
+  background: #5be000;
+  border-radius: 999px;
+  width: 6px !important;
+  height: 6px !important;
+  margin: 7px 0 0 7px;
+}
+
+.react-flow__node {
+  cursor: pointer;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

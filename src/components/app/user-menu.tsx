@@ -63,7 +63,10 @@ export function UserMenu({ user }: { user: SessionUser }) {
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => router.push("/community")}>
           <UsersRound aria-hidden="true" />
-          Community
+          <span className="flex-1">Community</span>
+          <span className="rounded-md border border-[#584211] bg-[#2b1f06] px-1.5 py-0.5 font-mono text-[0.5625rem] tracking-[0.08em] text-[#ffc53d] uppercase">
+            Coming soon
+          </span>
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => {

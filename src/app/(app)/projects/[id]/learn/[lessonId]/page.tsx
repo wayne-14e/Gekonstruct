@@ -17,6 +17,9 @@ import { FileChip } from "@/components/projects/guidebook-parts";
 import { LessonMarkdown } from "@/components/projects/lesson-markdown";
 import { PathwayNav } from "@/components/projects/pathway-nav";
 import { Quiz } from "@/components/projects/quiz";
+import { LessonQuest } from "@/components/projects/lesson-quest";
+import { GitTimeTravel } from "@/components/projects/git-time-travel";
+import { SandboxQuest } from "@/components/projects/sandbox-quest";
 import { StageBadge } from "@/components/projects/stage-badge";
 import { Button } from "@/components/ui/button";
 import { recordLessonViewed } from "@/lib/analytics";
@@ -110,6 +113,21 @@ export default async function LessonPage({
         </p>
       </section>
 
+      <LessonQuest
+        lesson={lesson}
+        repoUrl={project.repoUrl}
+        codeRefs={lesson.codeRefs
+          .map((ref) => {
+            const content = contents.get(ref.file);
+            return content === undefined
+              ? null
+              : { file: ref.file, content, note: ref.note };
+          })
+          .filter((ref): ref is { file: string; content: string; note: string } => ref !== null)}
+      />
+
+      <GitTimeTravel projectId={project.id} />
+
       <article aria-labelledby="explain-heading" className="mt-8">
         <div className="flex items-center gap-2">
           <FileCode2 className="size-4 text-primary" aria-hidden="true" />
@@ -172,6 +190,14 @@ export default async function LessonPage({
           })}
         </div>
       </section>
+
+      {lesson.codeRefs[0] ? (
+        <SandboxQuest
+          title={lesson.title}
+          initialCode={contents.get(lesson.codeRefs[0].file) ?? lesson.codeRefs[0].note}
+          language={lesson.codeRefs[0].file.split(".").pop() ?? "plaintext"}
+        />
+      ) : null}
 
       <SpeechBubble mood={passed ? "proud" : "encouraging"} className="mt-8" label="Geko">
         {lesson.gekoTip}

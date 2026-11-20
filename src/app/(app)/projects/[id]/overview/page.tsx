@@ -15,6 +15,9 @@ import { SpeechBubble } from "@/components/brand/speech-bubble";
 import { XpBadge } from "@/components/app/xp-badge";
 import { FileChipList, InlineText } from "@/components/projects/guidebook-parts";
 import { OverviewTracker } from "@/components/projects/overview-tracker";
+import { ArchitectureExplorer } from "@/components/projects/architecture-explorer";
+import { ArchitectureTrace } from "@/components/projects/architecture-trace";
+import { OverviewPager } from "@/components/projects/overview-pager";
 import { PathwayNav } from "@/components/projects/pathway-nav";
 import { StageBadge } from "@/components/projects/stage-badge";
 import { Button } from "@/components/ui/button";
@@ -89,6 +92,9 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
         <InlineText text={summary.gekoIntro} />
       </SpeechBubble>
 
+      <OverviewPager
+        labels={["What", "Skill map", "Layers", "Request", "Trace", "Concepts"]}
+      >
       <section
         aria-labelledby="summary-heading"
         data-overview-section="summary"
@@ -110,6 +116,8 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
           </p>
         </div>
       </section>
+
+      <ArchitectureExplorer guidebook={guidebook} repoUrl={project.repoUrl} />
 
       <section
         aria-labelledby="layers-heading"
@@ -216,6 +224,8 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
         </ol>
       </section>
 
+      <ArchitectureTrace guidebook={guidebook} />
+
       <section
         aria-labelledby="concepts-heading"
         data-overview-section="concepts"
@@ -261,6 +271,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
           ))}
         </ul>
       </section>
+      </OverviewPager>
 
       {architecture.mermaid ? (
         <details className="mt-8 rounded-2xl border border-border bg-card">

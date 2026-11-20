@@ -17,6 +17,7 @@ import { SpeechBubble } from "@/components/brand/speech-bubble";
 import { XpBadge } from "@/components/app/xp-badge";
 import { CodeBlock } from "@/components/projects/code-block";
 import { DebugQuiz } from "@/components/projects/debug-quiz";
+import { DebugDetective } from "@/components/projects/debug-detective";
 import { PathwayNav } from "@/components/projects/pathway-nav";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
@@ -110,6 +111,10 @@ export default async function DebugSessionPage({
           &ldquo;{session.symptom}&rdquo;
         </p>
       </section>
+
+      {session.status === "done" && session.likelyCauses ? (
+        <DebugDetective symptom={session.symptom} causes={session.likelyCauses} />
+      ) : null}
 
       {session.status === "failed" ? (
         <div className="mt-8 rounded-2xl border border-[#5a1c1c] bg-[#2c0f0f] p-6 text-sm text-[#ff7a70]">

@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, LayoutDashboard, UserRound, FolderGit2 } from "lucide-react";
+import { LogOut, LayoutDashboard, UserRound, FolderGit2, UsersRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +60,10 @@ export function UserMenu({ user }: { user: SessionUser }) {
         <DropdownMenuItem onSelect={() => router.push("/projects")}>
           <FolderGit2 aria-hidden="true" />
           Projects
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => router.push("/community")}>
+          <UsersRound aria-hidden="true" />
+          Community
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => {

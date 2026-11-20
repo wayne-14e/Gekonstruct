@@ -20,9 +20,10 @@ second pathway.
 `/login`. Google sign-in (client popup) → `signInAction` verifies the ID token, provisions
 `users/{uid}`, sets an httpOnly `geko_session` cookie (14 days) and refreshes the route.
 Landing page, `/login`, `/profile` (editable name, earned badges, share progress, reset and
-sign-out actions), `/projects` (two-column project cards with pathway progress), and `/dashboard`
-(personal greeting, repo connection and the six latest activities), branded 404 + error boundary,
-sticky header with account menu, XP chip, footer. The user-menu link "My profile" opens `/profile`.
+sign-out actions), `/community` (signed-in Coming Soon teaser with no project listings),
+`/projects` (two-column project cards with pathway progress), and `/dashboard` (personal greeting,
+repo connection and the six latest activities), branded 404 + error boundary, sticky header with
+account menu, XP chip, footer. The user-menu links "Community" and "My profile" open their pages.
 
 **Ingestion — done (Phase 2).** The dashboard has a connect form (public GitHub URLs only)
 and a recent-activity feed; `/projects` lists project cards with stage badges and pathway progress.
@@ -105,9 +106,10 @@ mac-style red/yellow/green dots, followed by the pathways, how-it-works and clos
 Signed-in visitors are redirected to `/dashboard`; signing out returns them to `/`.
 
 Last verified: 2026-11-20 — `npm run build`, `npx tsc --noEmit`, `npm run lint`, and
-`npm test` green (95/95). The profile share post is user-triggered and uses native sharing with
-clipboard fallback; the two-session quota is enforced with Admin SDK transactions. Its usage
-subcollection is unmatched by client Firestore rules, so no rules redeploy is required.
+`npm test` green (95/95). Profile sharing renders a branded PNG and uses native file sharing
+where supported, with download/caption fallback; the two-session quota is enforced with Admin
+SDK transactions. Its usage subcollection is unmatched by client Firestore rules, so no rules
+redeploy is required.
 `firebase deploy --only firestore:rules` previously released the owner-scoped rules to
 `gekonstruct-14174`. All 3 pathways (Architecture Map, Foundations Lessons,
 Debug & Learn) functional end-to-end with badges and the full §13 event set. Previously
@@ -147,6 +149,7 @@ on `wayne-14e/Verdict` (6 layers, 7 flow steps, 11 concepts, ~41s); 2026-11-13: 
   completeDebugSession(projectId, sid, answers) server action → progress + XP + bug-whisperer badge
   markOverviewSectionViewed(projectId, section) server action → overviewSections + map-reader transaction
   updateDisplayName / clearUserProgress server actions → editable profile / owned-project recursive deletion
+  user menu → /community (signed-in Coming Soon teaser; no marketplace listings)
   after() on lesson/hub render → lesson_viewed / return_visit (deterministic ids)
 [Next.js server]
   server actions: signIn, signOut, createProject, completeLesson, completeDebugSession,
@@ -554,10 +557,26 @@ Append-only. Newest last.
   shared or copied. No public profile route or persistent public data is created.
   This is a narrow exception to BLUEPRINT's out-of-scope social features, explicitly requested
   by the user. Rejected: a social feed, public profile directory, or leaderboard.
+- **2026-11-20 — `/community` is a Coming Soon teaser, not a marketplace launch.** It explains
+  the requested creator-project remix concept, limited to Architecture Map and Foundations;
+  learners will build in their own workspace without contributing to the creator's GitHub repo.
+  The page lists no projects and adds no submission, remix, waitlist or marketplace behavior.
+  This is an explicit exception to BLUEPRINT's out-of-scope social features. Rejected: mock
+  listings that could imply the marketplace is already open.
 
 ## Change Log
 
 Newest first.
+
+- **2026-11-20 — Add a Coming Soon Community page.**
+  Files: `src/app/(app)/community/page.tsx`, `src/components/app/user-menu.tsx`,
+  `PROJECT_CONTEXT.md`.
+  Why: introduce the future project-learning marketplace without implying it is available now.
+  What: the signed-in account menu links to a Community teaser describing the project remix
+  concept, Architecture Map + Foundations learning path, and no-GitHub-contribution boundary.
+  It shows no user projects or mock listings and links back to the existing Projects page.
+  Verify: open the account menu → **Community**; confirm the Coming Soon state, concept and
+  Projects link render, and no marketplace project cards are shown.
 
 - **2026-11-20 — Share profile progress as an achievement.**
   Files: `src/app/(app)/profile/page.tsx`,

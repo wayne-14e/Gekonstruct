@@ -23,6 +23,11 @@ describe("mergeViewedSections", () => {
 });
 
 describe("isOverviewComplete", () => {
+  it("tracks the remaining map areas instead of the removed layers section", () => {
+    expect(OVERVIEW_SECTIONS).toEqual(["summary", "skillmap", "flow", "concepts"]);
+    expect(mergeViewedSections(["layers"], "skillmap")).toEqual(["skillmap"]);
+  });
+
   it("requires every section, in any order", () => {
     expect(isOverviewComplete(OVERVIEW_SECTIONS)).toBe(true);
     expect(isOverviewComplete([...OVERVIEW_SECTIONS].reverse())).toBe(true);

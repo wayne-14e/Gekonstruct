@@ -78,11 +78,7 @@ export function OverviewTracker({
       void send("summary");
     }
 
-    const nodes = Array.from(
-      document.querySelectorAll<HTMLElement>("[data-overview-section]"),
-    );
-    if (nodes.length === 0) return () => undefined;
-
+    const observed = new WeakSet<Element>();
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -95,10 +91,34 @@ export function OverviewTracker({
       { threshold: 0.3, rootMargin: "-8% 0px -8% 0px" },
     );
 
-    for (const node of nodes) observer.observe(node);
+    function observeSections(root: ParentNode) {
+      if (root instanceof Element && root.matches("[data-overview-section]")) {
+        observe(root);
+      }
+      root.querySelectorAll<HTMLElement>("[data-overview-section]").forEach(observe);
+    }
+
+    function observe(node: Element) {
+      if (observed.has(node)) return;
+      observed.add(node);
+      observer.observe(node);
+    }
+
+    observeSections(document);
+    const mutations = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node instanceof Element || node instanceof DocumentFragment) {
+            observeSections(node);
+          }
+        }
+      }
+    });
+    mutations.observe(document.body, { childList: true, subtree: true });
 
     return () => {
       cancelled = true;
+      mutations.disconnect();
       observer.disconnect();
     };
   }, [projectId, initialViewed, initialBadgeEarned]);
@@ -111,8 +131,8 @@ export function OverviewTracker({
         <p className="label-mono">Map read</p>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
           {badgeEarned
-            ? "All four sections read. Map Reader is yours."
-            : "Read all four sections to earn the Map Reader badge."}
+            ? "All four map areas read. Map Reader is yours."
+            : "Visit all four map areas to earn the Map Reader badge."}
         </p>
       </div>
       <div className="flex items-center gap-1.5" aria-hidden="true">

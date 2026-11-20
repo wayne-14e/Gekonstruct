@@ -2,10 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { recordOverviewSectionViewed } from "@/lib/analytics";
+import {
+  recordOverviewSectionViewed,
+  recordRequestStepUnderstood,
+} from "@/lib/analytics";
 import { getCurrentUser } from "@/lib/auth/session";
 import { OverviewSectionSchema } from "@/lib/domain/event";
-import { getProject } from "@/lib/projects";
+import { getGuidebook, getProject } from "@/lib/projects";
 
 const MarkOverviewSectionInputSchema = z.object({
   projectId: z.string().trim().min(1).max(200),
@@ -52,5 +55,53 @@ export async function markOverviewSectionViewed(
   } catch (error) {
     console.error("markOverviewSectionViewed failed", error);
     return { ok: false, error: "We couldn't save your reading progress. Try again." };
+  }
+}
+
+const MarkRequestStepInputSchema = z.object({
+  projectId: z.string().trim().min(1).max(200),
+  stepIndex: z.number().int().nonnegative(),
+});
+
+export type MarkRequestStepResult =
+  | { ok: true; understoodSteps: number[] }
+  | { ok: false; error: string };
+
+export async function markRequestStepUnderstood(
+  input: unknown,
+): Promise<MarkRequestStepResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Sign in to save your request progress." };
+
+  const parsed = MarkRequestStepInputSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "That request step was not recognised." };
+
+  const project = await getProject(parsed.data.projectId, user.uid);
+  if (!project) return { ok: false, error: "Project not found." };
+
+  const guidebook = await getGuidebook(project.id);
+  if (!guidebook) return { ok: false, error: "This project doesn't have a request map yet." };
+
+  const totalSteps = guidebook.architecture.dataFlow.length;
+  if (parsed.data.stepIndex >= totalSteps) {
+    return { ok: false, error: "That request step was not recognised." };
+  }
+
+  try {
+    const result = await recordRequestStepUnderstood({
+      projectId: project.id,
+      uid: user.uid,
+      stepIndex: parsed.data.stepIndex,
+      totalSteps,
+    });
+    if (!result.accepted) {
+      return { ok: false, error: "Complete the request steps in order." };
+    }
+
+    revalidatePath(`/projects/${project.id}/overview`);
+    return { ok: true, understoodSteps: result.understoodSteps };
+  } catch (error) {
+    console.error("markRequestStepUnderstood failed", error);
+    return { ok: false, error: "We couldn't save that step. Try again." };
   }
 }

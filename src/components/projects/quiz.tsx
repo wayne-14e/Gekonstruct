@@ -130,12 +130,13 @@ export function Quiz({
           return (
             <fieldset
               key={`${question.question}-${questionIndex}`}
-              className="rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+              className="min-w-0 rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
             >
-              <legend className="px-1 text-sm font-semibold leading-relaxed text-foreground">
+              <legend className="sr-only">Question {questionIndex + 1}</legend>
+              <p className="max-w-full text-sm font-semibold leading-relaxed text-foreground [overflow-wrap:anywhere]">
                 {questionIndex + 1}. {question.question}
-              </legend>
-              <div className="mt-3 space-y-2">
+              </p>
+              <div className="mt-4 space-y-2">
                 {question.options.map((option, optionIndex) => {
                   const selected = answers[questionIndex] === optionIndex;
                   const isCorrect = review?.correctIndexes[questionIndex] === optionIndex;

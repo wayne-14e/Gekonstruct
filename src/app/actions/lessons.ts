@@ -137,6 +137,7 @@ export async function completeLesson(input: unknown): Promise<CompleteLessonResu
         xp: progress.xp + xpAwarded,
         pathwayBonusAwarded: progress.pathwayBonusAwarded || bonusXp > 0,
         overviewSections: progress.overviewSections,
+        understoodRequestSteps: progress.understoodRequestSteps,
       });
 
       const userUpdate: Record<string, unknown> = {};

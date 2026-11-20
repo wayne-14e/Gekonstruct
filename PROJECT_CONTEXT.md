@@ -44,9 +44,10 @@ user has updated §4's diagram to DeepSeek.
 **Architecture map — done (Phase 3).** `/api/pipeline/architecture` asks DeepSeek for JSON
 from the stored snapshot + stack, validates it with zod and against real snapshot paths, then
 writes `guidebook/main` with provenance (`model`, `promptVersion`). One repair retry is
-allowed. `/projects/[id]/overview` renders the summary, an outside-in layer accordion (native
-`<details>`), the request flow, the concepts grid, GitHub-linked file chips and the optional
-mermaid source; a small `OverviewTracker` island reports sections the reader has seen.
+allowed. `/projects/[id]/overview` is a four-section pager: project summary, interactive
+React Flow skill map, request walkthrough, and concepts with GitHub-linked file chips. The
+request walkthrough highlights the current step and saves each “Understood” action; the map
+reader tracker reports the four areas visited.
 
 **Foundations — done (Phase 4).** `/projects/[id]` runs ingest → architecture → lessons1
 → lessons2 (four idempotent steps) and reaches `ready`. `/api/pipeline/lessons1|lessons2`
@@ -106,8 +107,8 @@ mac-style red/yellow/green dots, followed by the pathways, how-it-works and clos
 Signed-in visitors are redirected to `/dashboard`; signing out returns them to `/`.
 
 Last verified: 2026-11-20 — `npm run build`, `npx tsc --noEmit`, `npm run lint`, and
-`npm test` green (95/95). Architecture uses a snap-scrolling section pager, React Flow skill map,
-and request tracing;
+`npm test` green (100/100). Architecture uses a four-section pager, React Flow skill map,
+and a saved, step-by-step request walkthrough;
 Foundations include a progressive Monaco split workspace; Debug includes
 the detective board. The header includes Profile and the account popup labels Community as
 Coming soon. Projects include icon-only cascade deletion with confirmation. Profile sharing renders a branded PNG and uses native file sharing
@@ -129,7 +130,7 @@ on `wayne-14e/Verdict` (6 layers, 7 flow steps, 11 concepts, ~41s); 2026-11-13: 
 | 0 | Bootstrap | Scaffold, design tokens, brand components, Firebase wiring, env, this doc | `next build` green; landing shell renders |
 | 1 | M1 Auth & shell ✅ | Client Firebase auth + Google sign-in, session cookie via server action, `users/{uid}` bootstrap, landing, `/login`, `/dashboard` empty state, app header | Sign in → `/dashboard` shows empty state; signed-out `/dashboard` redirects to `/login` |
 | 2 | M2 Ingestion ✅ | `createProject` (3-project cap), `/api/pipeline/ingest`, GitHub tree+contents, ingest filters/budget (unit-tested), stack detection (unit-tested), `snapshot/main`, `/projects/[id]` runner, project cards with stage badges | 3 real public repos ingest; `node_modules` never in snapshot; >300 KB skipped; unrecognizable stack fails with message |
-| 3 | M3 Architecture ✅ | `/api/pipeline/architecture`, prompts module, zod schemas, repair retry, `guidebook` doc, `/overview` page (layers, data flow, concepts, file chips, optional mermaid) | guidebook passes zod on a real repo; overview renders real layers |
+| 3 | M3 Architecture ✅ | `/api/pipeline/architecture`, prompts module, zod schemas, repair retry, `guidebook` doc, `/overview` page (summary, skill map, request flow, concepts, file chips) | guidebook passes zod on a real repo; overview renders real project structure |
 | 4 | M4 Foundations ✅ | `/api/pipeline/lessons1` + `lessons2`, `/learn` list + lesson page, shiki code blocks, `Quiz`, `completeLesson`, XP transaction, progress state | pass quiz → XP in `users/{uid}`; fail → no XP, retry allowed |
 | 5 | M5 Debug ✅ | `/api/debug/run`, symptom form + session list, session page (causes/fix steps/whyItWorks/quiz), `completeDebugSession` | real symptom → evidence files that exist in the snapshot |
 | 6 | M6 Polish ✅ | Badges, analytics events, `PipelineRunner` retry UX, error/empty states everywhere, rules deployed, Geko polish | full journey with zero console errors |
@@ -152,12 +153,14 @@ on `wayne-14e/Verdict` (6 layers, 7 flow steps, 11 concepts, ~41s); 2026-11-13: 
   completeLesson(projectId, lessonId, answers) server action → progress + XP + foundation-builder transaction
   completeDebugSession(projectId, sid, answers) server action → progress + XP + bug-whisperer badge
   markOverviewSectionViewed(projectId, section) server action → overviewSections + map-reader transaction
+  markRequestStepUnderstood(projectId, stepIndex) server action → understoodRequestSteps transaction
   updateDisplayName / clearUserProgress server actions → editable profile / owned-project recursive deletion
   user menu → /community (signed-in Coming Soon teaser; no marketplace listings)
   after() on lesson/hub render → lesson_viewed / return_visit (deterministic ids)
 [Next.js server]
   server actions: signIn, signOut, createProject, completeLesson, completeDebugSession,
-                 markOverviewSectionViewed, updateDisplayName, clearUserProgress
+                 markOverviewSectionViewed, markRequestStepUnderstood,
+                 updateDisplayName, clearUserProgress
   route handlers: pipeline stages (idempotent, ≤60s), debug (/api/debug/run)
   lib: firebase/client (browser), firebase/admin (server), github, projects, debug, llm,
        prompts, lessons, quiz, badges, analytics,
@@ -190,7 +193,7 @@ lessons,lessons-runner,lessons-route,debug,debug-runner}.ts`,
 `src/lib/nav.ts`, `src/app/actions/{auth,projects,lessons,debug,progress,profile}.ts`,
 `src/components/{brand,auth,app,projects}/*` (incl. `badge-shelf.tsx`, `pathway-nav.tsx`,
 `profile-actions.tsx`, `app-nav.tsx`, `project-progress-card.tsx`, `overview-tracker.tsx`,
-`recent-activity-feed.tsx`, `guidebook-parts.tsx`, `code-block.tsx`,
+`request-flow.tsx`, `recent-activity-feed.tsx`, `guidebook-parts.tsx`, `code-block.tsx`,
 `lesson-markdown.tsx`, `quiz.tsx`, `debug-quiz.tsx`, `debug-symptom-form.tsx`), `scripts/dev-session.mjs` (dev-only cookie minter).
 
 Auth boundary: browser keeps the Firebase client session (for realtime Firestore reads);
@@ -200,7 +203,7 @@ Route handlers and server actions call `getCurrentUser()`; pages of the `(app)` 
 
 Client/server boundary: server components by default; `"use client"` only for the sign-in
 button, account menu, route-aware app navigation, profile forms/confirmation dialog and
-progress sharing, connect form, pipeline runner, overview tracker and quizzes.
+progress sharing, connect form, pipeline runner, overview tracker, request walkthrough and quizzes.
 
 ## Data Model
 
@@ -246,11 +249,14 @@ As built through Phase 6 (all timestamps are epoch **milliseconds**, not Firesto
   Ids are slugs, unique across both parts; `part 2` order continues after part 1.
 - `projects/{pid}/progress/{uid}` — `{ lessons: Record<lessonId, {passed, score, at}>,
   debug: Record<sid, {completed, at}>, badges: string[], xp: number,
-  pathwayBonusAwarded: boolean, overviewSections: string[] }`. **Deviations:**
+  pathwayBonusAwarded: boolean, overviewSections: string[],
+  understoodRequestSteps: number[] }`. **Deviations:**
   `pathwayBonusAwarded` is extra so the +50 completion bonus is paid exactly once across
   retakes; `overviewSections` is extra so each map section is recorded once and `map-reader`
-  can be awarded from stored state. `overviewSections` only ever contains the four known
-  section keys (`summary`, `layers`, `flow`, `concepts`).
+  can be awarded from stored state; `understoodRequestSteps` persists the learner's completed
+  request walkthrough steps. `overviewSections` contains the four keys (`summary`, `skillmap`,
+  `flow`, `concepts`); legacy `layers` entries are normalized to `skillmap`.
+  `understoodRequestSteps` contains zero-based indexes into the guidebook's `architecture.dataFlow`.
 - `projects/{pid}/debugSessions/{sid}` — `{ id, projectId, symptom, status: 'pending'|'done'|'failed',
   error: string|null, likelyCauses: [{ cause, evidenceFiles[], confidence: 'high'|'medium'|'low' }],
   fixSteps: string[], whyItWorks: { concept, explanation }, quiz: [{ question, options[], correctIndex, why }],
@@ -578,10 +584,50 @@ Append-only. Newest last.
   React Flow owns the interactive architecture graph; Monaco provides the progressive guided
   code workspace. Rejected: Gource, CodeCharta and GitDiagram as brittle or restyled
   third-party products.
+- **2026-11-20 — The Architecture Map is a four-section guided pager.** The standalone Layers
+  and Trace views and raw Mermaid source were removed; the interactive skill map, request
+  walkthrough, summary and concepts remain. Each “Understood” click saves a zero-based request
+  step in `progress/{uid}.understoodRequestSteps` inside a Firestore transaction; the server
+  enforces sequential completion, and the learner resumes at the first uncompleted step. The
+  section observer watches pager slides as they mount, preserving map-read progress for all four
+  areas. This user-directed UI change intentionally deviates from BLUEPRINT §9's layer accordion,
+  flow list and optional Mermaid UI; the stored guidebook schema remains unchanged. Rejected:
+  saving only the current step (would lose completed progress on reload) and exposing raw Mermaid
+  (not useful to the guided map flow).
 
 ## Change Log
 
 Newest first.
+
+- **2026-11-20 — Keep long Foundations quiz questions inside their cards.**
+  Files: `src/components/projects/quiz.tsx`, `PROJECT_CONTEXT.md`.
+  Why: browsers position a visible `<legend>` across the fieldset's top border, making the
+  question appear outside its card.
+  What: keep a screen-reader-only legend for fieldset semantics and render the visible,
+  wrapping question as normal content inside the card.
+  Verify: open a Foundations lesson with a long question and confirm it wraps within the
+  card on narrow and desktop layouts.
+
+- **2026-11-20 — Simplify the Architecture Map and save request walkthrough progress.**
+  Files: `src/app/(app)/projects/[id]/overview/page.tsx`,
+  `src/components/projects/{architecture-explorer,overview-tracker,request-flow}.tsx`,
+  `src/components/projects/architecture-trace.tsx` (removed),
+  `src/app/actions/progress.ts`, `src/lib/{analytics.ts,domain/event.ts,domain/progress.ts}`,
+  `src/lib/domain/{event.test.ts,progress.test.ts}`,
+  `src/app/actions/{lessons,debug}.ts`, `src/app/(app)/projects/page.tsx`,
+  `src/components/projects/project-progress-card.tsx`, `PROJECT_CONTEXT.md`.
+  Why: remove redundant Layers/Trace/map-source UI and make the Request section an
+  understandable, resumable walkthrough.
+  What: the pager now has What, Skill map, Request and Concepts. Request highlights the next
+  uncompleted step; **Understood** saves it transactionally and advances, with the server
+  enforcing the sequence. The four map-area
+  tracker now observes pager content when it mounts, and project progress counts the new
+  Skill map section instead of Layers. Mermaid remains stored in guidebook data but is no
+  longer exposed as raw source.
+  Verify: open a ready project → Architecture → Request; click **Understood** on one or more
+  steps, reload, and confirm completed steps stay marked and the next step is active. Visit
+  What, Skill map, Request and Concepts and confirm the map-read indicator reaches 4/4.
+  Confirm Layers, Trace and Diagram source are absent.
 
 - **2026-11-20 — Standardize signed-in page content width.**
   Files: `src/app/(app)/profile/page.tsx`,
@@ -949,6 +995,9 @@ Older entries, one line each (full detail in git history):
 
 ## Known Issues
 
+- **FIXED 2026-11-20 — Long Foundations quiz questions could overflow their card.**
+  The visible question now renders inside the fieldset instead of overlapping its border
+  as a legend (see Change Log 2026-11-20).
 - **FIXED 2026-11-18 — `DEEPSEEK_API_KEY` was blank.** The key is configured and the
   architecture stage makes a real model call (see Change Log 2026-11-18).
 - **FIXED 2026-11-19 — Lessons and quizzes were placeholders.** The full Foundations pathway
@@ -1101,6 +1150,8 @@ If you want the highest visual polish with the least friction in Next.js:
 3. **Interactive Quest View:** Embed **`@monaco-editor/react`** (for guided call-stack tracing) alongside **`@codesandbox/sandpack-react`** (for live "Break & Fix" coding challenges), all styled with your own CSS/Tailwind design system.
 
 
+### Completed TODO items
 
-- REMOVE Layers and Trace from Map. also make the Request highlight steps as user clicks Understood button and moves on to next step - this should be saved.
-- REMOVE Diagram source - mermaid...
+- Removed Layers and Trace from the Architecture Map; Request step acknowledgements now
+  highlight and persist progress.
+- Removed the raw Mermaid diagram source from the map UI.

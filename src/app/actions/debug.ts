@@ -121,6 +121,7 @@ export async function completeDebugSession(input: unknown): Promise<CompleteDebu
         xp: progress.xp + xpAwarded,
         pathwayBonusAwarded: progress.pathwayBonusAwarded,
         overviewSections: progress.overviewSections,
+        understoodRequestSteps: progress.understoodRequestSteps,
       });
 
       const userUpdate: Record<string, unknown> = {};

@@ -73,7 +73,7 @@ export function ArchitectureExplorer({ guidebook, repoUrl }: ArchitectureExplore
   const selected = guidebook.architecture.layers.find((layer) => layer.id === selectedId);
 
   return (
-    <section className="mt-8">
+    <section className="mt-8" data-overview-section="skillmap">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="label-mono">Skill map</p>

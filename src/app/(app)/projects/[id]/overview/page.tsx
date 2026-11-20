@@ -4,10 +4,7 @@ import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
-  ChevronDown,
-  Layers,
   Lightbulb,
-  Route,
   Sparkles,
 } from "lucide-react";
 import { GekoAvatar } from "@/components/brand/geko-avatar";
@@ -16,9 +13,9 @@ import { XpBadge } from "@/components/app/xp-badge";
 import { FileChipList, InlineText } from "@/components/projects/guidebook-parts";
 import { OverviewTracker } from "@/components/projects/overview-tracker";
 import { ArchitectureExplorer } from "@/components/projects/architecture-explorer";
-import { ArchitectureTrace } from "@/components/projects/architecture-trace";
 import { OverviewPager } from "@/components/projects/overview-pager";
 import { PathwayNav } from "@/components/projects/pathway-nav";
+import { RequestFlow } from "@/components/projects/request-flow";
 import { StageBadge } from "@/components/projects/stage-badge";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
@@ -93,7 +90,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
       </SpeechBubble>
 
       <OverviewPager
-        labels={["What", "Skill map", "Layers", "Request", "Trace", "Concepts"]}
+        labels={["What", "Skill map", "Request", "Concepts"]}
       >
       <section
         aria-labelledby="summary-heading"
@@ -119,112 +116,11 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
 
       <ArchitectureExplorer guidebook={guidebook} repoUrl={project.repoUrl} />
 
-      <section
-        aria-labelledby="layers-heading"
-        data-overview-section="layers"
-        className="mt-10"
-      >
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Layers className="size-4 text-primary" aria-hidden="true" />
-            <h2 id="layers-heading" className="text-xl">
-              Layers, outside in
-            </h2>
-          </div>
-          <p className="font-mono text-[0.6875rem] tracking-[0.1em] text-muted-foreground uppercase">
-            {architecture.layers.length} layers
-          </p>
-        </div>
-        <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Each layer is a job this project does. Open one to see how it works and which
-          files own it.
-        </p>
-
-        <div className="mt-4 space-y-3">
-          {architecture.layers.map((layer, index) => (
-            <details
-              key={layer.id}
-              open={index === 0}
-              className="group overflow-hidden rounded-2xl border border-border bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-            >
-              <summary className="flex cursor-pointer list-none items-start gap-3 p-4 outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring sm:p-5 [&::-webkit-details-marker]:hidden">
-                <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md border border-[#1e5033] bg-[#0e2a1c] font-mono text-[0.6875rem] font-semibold text-primary tabular-nums">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-base font-semibold tracking-[-0.01em] text-foreground">
-                    {layer.name}
-                  </span>
-                  <span className="mt-0.5 block text-sm leading-relaxed text-muted-foreground">
-                    {layer.purpose}
-                  </span>
-                </span>
-                <span className="mt-1 hidden shrink-0 font-mono text-[0.6875rem] text-muted-foreground sm:block">
-                  {layer.files.length} {layer.files.length === 1 ? "file" : "files"}
-                </span>
-                <ChevronDown
-                  className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
-                  aria-hidden="true"
-                />
-              </summary>
-              <div className="border-t border-border/70 px-4 pb-5 pt-4 sm:px-5">
-                <p className="text-[0.9375rem] leading-relaxed text-card-foreground">
-                  <InlineText text={layer.plainExplanation} />
-                </p>
-                <FileChipList files={layer.files} repoUrl={project.repoUrl} className="mt-3" />
-              </div>
-            </details>
-          ))}
-        </div>
-      </section>
-
-      <section
-        aria-labelledby="flow-heading"
-        data-overview-section="flow"
-        className="mt-10"
-      >
-        <div className="flex items-center gap-2">
-          <Route className="size-4 text-primary" aria-hidden="true" />
-          <h2 id="flow-heading" className="text-xl">
-            One request, start to finish
-          </h2>
-        </div>
-        <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          This is the path work takes through your code. Follow it once and the file tree
-          stops feeling random.
-        </p>
-
-        <ol className="mt-5">
-          {architecture.dataFlow.map((step, index) => {
-            const last = index === architecture.dataFlow.length - 1;
-            return (
-              <li key={`${step.from}-${step.to}-${index}`} className="relative flex gap-4 pb-6 last:pb-0">
-                {!last ? (
-                  <span
-                    className="absolute top-8 bottom-0 left-[13px] w-px bg-border"
-                    aria-hidden="true"
-                  />
-                ) : null}
-                <span className="relative z-10 mt-0.5 grid size-7 shrink-0 place-items-center rounded-full border border-border bg-[#0e141b] font-mono text-[0.6875rem] text-muted-foreground tabular-nums">
-                  {index + 1}
-                </span>
-                <div className="min-w-0">
-                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-foreground">
-                    <span>{step.from}</span>
-                    <ArrowRight className="size-3.5 text-muted-foreground" aria-hidden="true" />
-                    <span>{step.to}</span>
-                  </p>
-                  <p className="mt-1 text-[0.9375rem] leading-relaxed text-muted-foreground">
-                    <InlineText text={step.whatHappens} />
-                  </p>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      </section>
-
-      <ArchitectureTrace guidebook={guidebook} />
+      <RequestFlow
+        projectId={project.id}
+        steps={architecture.dataFlow}
+        initialUnderstoodSteps={safeProgress.understoodRequestSteps}
+      />
 
       <section
         aria-labelledby="concepts-heading"
@@ -272,26 +168,6 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
         </ul>
       </section>
       </OverviewPager>
-
-      {architecture.mermaid ? (
-        <details className="mt-8 rounded-2xl border border-border bg-card">
-          <summary className="cursor-pointer list-none rounded-2xl px-5 py-4 text-sm font-semibold text-foreground outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-            Diagram source
-            <span className="ml-2 font-mono text-[0.6875rem] font-normal text-muted-foreground">
-              mermaid flowchart
-            </span>
-          </summary>
-          <div className="border-t border-border/70 px-5 py-4">
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              The map reads best as the layer and flow sections above. This is the raw
-              flowchart the analysis produced, kept for reference.
-            </p>
-            <pre className="mt-3 overflow-x-auto rounded-xl border border-border bg-[#0e141b] p-3 font-mono text-xs leading-relaxed text-[#a9bccb]">
-              {architecture.mermaid}
-            </pre>
-          </div>
-        </details>
-      ) : null}
 
       <div className="mt-10 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
         <div className="flex items-start gap-3">

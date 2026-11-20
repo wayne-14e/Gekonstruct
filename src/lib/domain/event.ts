@@ -32,7 +32,7 @@ export type AnalyticsEventDoc = z.infer<typeof AnalyticsEventDocSchema>;
  * The four readable sections of `/projects/[id]/overview`. `map-reader` is awarded when
  * every one of these has been seen (BLUEPRINT §7: "overview fully expanded/read").
  */
-export const OVERVIEW_SECTIONS = ["summary", "layers", "flow", "concepts"] as const;
+export const OVERVIEW_SECTIONS = ["summary", "skillmap", "flow", "concepts"] as const;
 
 export const OverviewSectionSchema = z.enum(OVERVIEW_SECTIONS);
 
@@ -40,7 +40,7 @@ export type OverviewSection = z.infer<typeof OverviewSectionSchema>;
 
 export const OVERVIEW_SECTION_LABELS: Record<OverviewSection, string> = {
   summary: "Summary",
-  layers: "Layers",
+  skillmap: "Skill map",
   flow: "Request flow",
   concepts: "Concepts",
 };

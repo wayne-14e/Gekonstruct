@@ -5,6 +5,7 @@ import { ProjectProgressCard } from "@/components/projects/project-progress-card
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
 import { listDebugSessions } from "@/lib/debug";
+import { OVERVIEW_SECTIONS } from "@/lib/domain/event";
 import { countPassedLessons, emptyProgressDoc } from "@/lib/domain/progress";
 import { getLessons, getProgress } from "@/lib/lessons";
 import { listProjects } from "@/lib/projects";
@@ -29,7 +30,7 @@ export default async function ProjectsPage() {
         project,
         passedLessons: countPassedLessons(safeProgress, lessons),
         lessonCount: lessons.length,
-        overviewSections: ["summary", "layers", "flow", "concepts"].filter((section) =>
+        overviewSections: OVERVIEW_SECTIONS.filter((section) =>
           safeProgress.overviewSections.includes(section),
         ).length,
         completedDebug: Object.values(safeProgress.debug).filter((entry) => entry.completed)

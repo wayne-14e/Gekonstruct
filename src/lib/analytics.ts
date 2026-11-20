@@ -12,7 +12,12 @@ import {
   type AnalyticsEventType,
   type OverviewSection,
 } from "@/lib/domain/event";
-import { emptyProgressDoc, ProgressDocSchema } from "@/lib/domain/progress";
+import {
+  emptyProgressDoc,
+  mergeUnderstoodRequestSteps,
+  nextRequestStepIndex,
+  ProgressDocSchema,
+} from "@/lib/domain/progress";
 import { adminDb } from "@/lib/firebase/admin";
 import { progressDocRef } from "@/lib/lessons";
 import { projectDocRef } from "@/lib/projects";
@@ -135,6 +140,7 @@ export async function recordOverviewSectionViewed(input: {
       xp: progress.xp,
       pathwayBonusAwarded: progress.pathwayBonusAwarded,
       overviewSections: viewed,
+      understoodRequestSteps: progress.understoodRequestSteps,
     });
 
     if (!sectionEventSnap.exists) {
@@ -155,5 +161,42 @@ export async function recordOverviewSectionViewed(input: {
     }
 
     return { viewed, badgeAwarded, complete };
+  });
+}
+
+export async function recordRequestStepUnderstood(input: {
+  projectId: string;
+  uid: string;
+  stepIndex: number;
+  totalSteps: number;
+}): Promise<{ understoodSteps: number[]; accepted: boolean }> {
+  const { projectId, uid, stepIndex, totalSteps } = input;
+  const progressRef = progressDocRef(projectId, uid);
+
+  return adminDb().runTransaction(async (tx) => {
+    const progressSnap = await tx.get(progressRef);
+    const parsedProgress = progressSnap.exists
+      ? ProgressDocSchema.safeParse(progressSnap.data())
+      : null;
+    const progress = parsedProgress?.success ? parsedProgress.data : emptyProgressDoc();
+    const alreadyUnderstood = progress.understoodRequestSteps.includes(stepIndex);
+    const nextStepIndex = nextRequestStepIndex(
+      progress.understoodRequestSteps,
+      totalSteps,
+    );
+    if (!alreadyUnderstood && stepIndex !== nextStepIndex) {
+      return { understoodSteps: progress.understoodRequestSteps, accepted: false };
+    }
+
+    const understoodRequestSteps = mergeUnderstoodRequestSteps(
+      progress.understoodRequestSteps,
+      stepIndex,
+      totalSteps,
+    );
+
+    if (!alreadyUnderstood) {
+      tx.set(progressRef, { ...progress, understoodRequestSteps });
+    }
+    return { understoodSteps: understoodRequestSteps, accepted: true };
   });
 }

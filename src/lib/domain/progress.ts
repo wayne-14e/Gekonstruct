@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isOverviewSection } from "@/lib/domain/event";
 
 /**
  * `projects/{pid}/progress/{uid}` (BLUEPRINT §7). Timestamps are epoch millis.
@@ -7,6 +8,7 @@ import { z } from "zod";
  * - `pathwayBonusAwarded` pays the completion bonus exactly once across retakes.
  * - `overviewSections` records which architecture-map sections were read so the
  *   `map-reader` badge and `overview_section_viewed` events are idempotent.
+ * - `understoodRequestSteps` saves the learner's progress through the request walkthrough.
  */
 export const LessonProgressSchema = z.object({
   passed: z.boolean(),
@@ -27,7 +29,19 @@ export const ProgressDocSchema = z.object({
   badges: z.array(z.string()).default([]),
   xp: z.number().int().nonnegative().default(0),
   pathwayBonusAwarded: z.boolean().default(false),
-  overviewSections: z.array(z.string()).default([]),
+  overviewSections: z
+    .array(z.string())
+    .default([])
+    .transform((sections) =>
+      Array.from(
+        new Set(
+          sections
+            .map((section) => (section === "layers" ? "skillmap" : section))
+            .filter(isOverviewSection),
+        ),
+      ),
+    ),
+  understoodRequestSteps: z.array(z.number().int().nonnegative()).default([]),
 });
 
 export type ProgressDoc = z.infer<typeof ProgressDocSchema>;
@@ -40,7 +54,33 @@ export function emptyProgressDoc(): ProgressDoc {
     xp: 0,
     pathwayBonusAwarded: false,
     overviewSections: [],
+    understoodRequestSteps: [],
   };
+}
+
+export function mergeUnderstoodRequestSteps(
+  existing: readonly number[],
+  stepIndex: number,
+  totalSteps: number,
+): number[] {
+  return Array.from(
+    new Set(
+      [...existing, stepIndex].filter(
+        (index) => Number.isInteger(index) && index >= 0 && index < totalSteps,
+      ),
+    ),
+  ).sort((left, right) => left - right);
+}
+
+export function nextRequestStepIndex(
+  understoodSteps: readonly number[],
+  totalSteps: number,
+): number {
+  const completed = new Set(understoodSteps);
+  for (let index = 0; index < totalSteps; index += 1) {
+    if (!completed.has(index)) return index;
+  }
+  return -1;
 }
 
 export function countPassedLessons(

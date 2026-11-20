@@ -4,10 +4,9 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StageBadge } from "@/components/projects/stage-badge";
 import { DeleteProjectButton } from "@/components/projects/delete-project-button";
+import { OVERVIEW_SECTIONS } from "@/lib/domain/event";
 import type { ProjectRecord } from "@/lib/projects";
 import { stackChips } from "@/lib/pipeline/stack";
-
-const OVERVIEW_SECTIONS = ["summary", "layers", "flow", "concepts"] as const;
 
 export type ProjectProgressSummary = {
   project: ProjectRecord;

@@ -60,7 +60,7 @@ export default async function DebugSessionPage({
   const fileMap = new Map((snapshot?.files ?? []).map((f) => [f.path, f.content]));
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 sm:py-12">
+    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
       <Link
         href={`/projects/${project.id}/debug`}
         className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"

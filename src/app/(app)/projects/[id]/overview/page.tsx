@@ -54,7 +54,7 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
     project.stage === "lessons1" || project.stage === "lessons2" || project.stage === "ready";
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-12">
+    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
       <Link
         href={`/projects/${project.id}`}
         className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -335,8 +335,8 @@ function MapMissing({ project }: { project: ProjectRecord }) {
     : "This project doesn't have an architecture map yet.";
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-16 sm:px-6">
-      <div className="rounded-2xl border border-border bg-card p-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-10">
+    <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
+      <div className="mx-auto max-w-2xl rounded-2xl border border-border bg-card p-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-10">
         <div className="mx-auto w-fit">
           <GekoAvatar mood="calm" size="lg" />
         </div>

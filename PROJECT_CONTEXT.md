@@ -108,7 +108,7 @@ Signed-in visitors are redirected to `/dashboard`; signing out returns them to `
 Last verified: 2026-11-20 — `npm run build`, `npx tsc --noEmit`, `npm run lint`, and
 `npm test` green (95/95). Architecture uses a snap-scrolling section pager, React Flow skill map,
 and request tracing;
-Foundations include mission beats, Monaco code tours, Git replay and Sandpack; Debug includes
+Foundations include a progressive Monaco split workspace; Debug includes
 the detective board. The header includes Profile and the account popup labels Community as
 Coming soon. Projects include icon-only cascade deletion with confirmation. Profile sharing renders a branded PNG and uses native file sharing
 where supported, with download/caption fallback; the two-session quota is enforced with Admin
@@ -568,21 +568,52 @@ Append-only. Newest last.
   This is an explicit exception to BLUEPRINT's out-of-scope social features. Rejected: mock
   listings that could imply the marketplace is already open.
 - **2026-11-20 — All learning styles become first-class pathways.** The Architecture Map uses
-  React Flow, snap-scrolling sections and a trace mode; Foundations use mission beats,
-  Monaco-guided code tours, Git commit replay and a Sandpack sandbox; Debug uses a suspect-and-
+  React Flow, snap-scrolling sections and a trace mode; Foundations use a progressive Monaco
+  split workspace; Debug uses a suspect-and-
   evidence detective board. Existing lesson content, Firestore progress and server-side quiz
   grading remain unchanged. Rejected: hiding any mode behind a paid flag or replacing real
   repository evidence with synthetic tutorial code.
-- **2026-11-20 — Added visual-interaction dependencies.** Added `@xyflow/react`,
-  `@monaco-editor/react`, and `@codesandbox/sandpack-react`.
-  React Flow owns the interactive architecture graph; Monaco and Sandpack provide guided code
-  and browser sandboxes; GitHub's commit API
-  powers time-travel. Rejected: Gource, CodeCharta and GitDiagram as brittle or restyled
+- **2026-11-20 — Added visual-interaction dependencies.** Added `@xyflow/react`
+  and `@monaco-editor/react`.
+  React Flow owns the interactive architecture graph; Monaco provides the progressive guided
+  code workspace. Rejected: Gource, CodeCharta and GitDiagram as brittle or restyled
   third-party products.
 
 ## Change Log
 
 Newest first.
+
+- **2026-11-20 — Standardize signed-in page content width.**
+  Files: `src/app/(app)/profile/page.tsx`,
+  `src/app/(app)/projects/[id]/overview/page.tsx`,
+  `src/app/(app)/projects/[id]/learn/page.tsx`,
+  `src/app/(app)/projects/[id]/learn/[lessonId]/page.tsx`,
+  `src/app/(app)/projects/[id]/debug/page.tsx`,
+  `src/app/(app)/projects/[id]/debug/[sid]/page.tsx`,
+  `src/app/(app)/projects/[id]/error.tsx`, `PROJECT_CONTEXT.md`.
+  Why: main page content varied between 4xl, 5xl and 6xl, so pathways felt narrower than
+  Dashboard and Projects.
+  What: signed-in page wrappers now share the Dashboard's `max-w-6xl` width. Narrow error and
+  missing-map cards remain centered within the shared page container.
+  Verify: compare Dashboard, Profile, Architecture, Foundations, lesson, Debug and debug-session
+  pages at desktop width; their outer content edges now align.
+
+- **2026-11-20 — Convert Foundations to a progressive split IDE workspace.**
+  Files: `src/components/projects/foundation-workspace.tsx`,
+  `src/app/(app)/projects/[id]/learn/[lessonId]/page.tsx`,
+  `src/lib/github.ts`, removed Git time-travel and Sandpack components,
+  `package.json`, `package-lock.json`, `PROJECT_CONTEXT.md`.
+  Why: evidence check, Git replay and break/fix sandbox did not make the core lesson loop
+  clearer; the Foundations pathway needs concept and code working in parallel.
+  What: lesson concept, Geko tip and server-graded quiz now share the left pane. A Monaco IDE
+  on the right reveals cumulative lesson codeRefs; earlier lessons expose only their relevant
+  files, later lessons add more, and the final lesson exposes the full snapshot. The question
+  options remain re-graded by the existing server action, while the learner answers alongside
+  a real file tabbed in the IDE. Git time-travel, the evidence-check step and Sandpack sandbox
+  were removed.
+  Verify: open each Foundation lesson and confirm the left concept/quiz pane stays separate
+  from the right IDE; files accumulate as lesson order increases; the final lesson exposes
+  the full snapshot; quiz pass/fail and XP behavior are unchanged.
 
 - **2026-11-20 — Replace Architecture horizontal strip with active-only sections.**
   Files: `src/components/projects/overview-pager.tsx`, `PROJECT_CONTEXT.md`.
@@ -667,13 +698,13 @@ Newest first.
   Why: remove textbook-heavy surfaces and support visual, reading, tracing, replay,
   sandbox and detective learning styles without weakening repository-grounded content.
   What: the Architecture Map now has a snap-scrolling section pager, a full-width interactive
-  React Flow skill map and a dedicated request trace. Foundations now have short mission beats, Monaco code
-  highlighting, Git commit replay and a live Sandpack sandbox. Debug now starts with a
+  React Flow skill map and a dedicated request trace. Foundations now have a split concept/Monaco
+  workspace with cumulative unlocked files. Debug now starts with a
   suspect/evidence detective board before the existing fix and quiz. Prompt versions were
   bumped to v2 and all existing XP, badge and server grading behavior remains intact.
   Verify: open a ready project → **Architecture** and exercise the section pager, skill map and Trace;
-  open a Foundation lesson and complete mission → code tour → evidence; confirm Git replay
-  loads commits and the sandbox preview renders. Open Debug & Learn, select a suspect,
+  open a Foundation lesson and confirm the concept and code workspace remain synchronized;
+  open Debug & Learn, select a suspect,
   inspect evidence, follow fix steps and complete the quiz.
 
 - **2026-11-20 — Add a Coming Soon Community page.**
@@ -1068,3 +1099,8 @@ If you want the highest visual polish with the least friction in Next.js:
 1. **Ingestion & Parsing:** Clone/fetch the repo via **`isomorphic-git`** or GitHub API → parse imports & ASTs with **`ts-morph`** (for JS/TS) or **`web-tree-sitter`** (multi-language).
 2. **World Map View:** Render the repo structure in **`@xyflow/react`** (React Flow) styled as an interactive skill tree or node map where each node unlocks a lesson module.
 3. **Interactive Quest View:** Embed **`@monaco-editor/react`** (for guided call-stack tracing) alongside **`@codesandbox/sandpack-react`** (for live "Break & Fix" coding challenges), all styled with your own CSS/Tailwind design system.
+
+
+
+- REMOVE Layers and Trace from Map. also make the Request highlight steps as user clicks Understood button and moves on to next step - this should be saved.
+- REMOVE Diagram source - mermaid...

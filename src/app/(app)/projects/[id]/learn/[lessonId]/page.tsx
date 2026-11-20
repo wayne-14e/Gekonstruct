@@ -7,19 +7,10 @@ import {
   ArrowRight,
   Check,
   CircleCheck,
-  Code2,
-  FileCode2,
 } from "lucide-react";
-import { SpeechBubble } from "@/components/brand/speech-bubble";
 import { XpBadge } from "@/components/app/xp-badge";
-import { CodeBlock } from "@/components/projects/code-block";
-import { FileChip } from "@/components/projects/guidebook-parts";
-import { LessonMarkdown } from "@/components/projects/lesson-markdown";
 import { PathwayNav } from "@/components/projects/pathway-nav";
-import { Quiz } from "@/components/projects/quiz";
-import { LessonQuest } from "@/components/projects/lesson-quest";
-import { GitTimeTravel } from "@/components/projects/git-time-travel";
-import { SandboxQuest } from "@/components/projects/sandbox-quest";
+import { FoundationWorkspace } from "@/components/projects/foundation-workspace";
 import { StageBadge } from "@/components/projects/stage-badge";
 import { Button } from "@/components/ui/button";
 import { recordLessonViewed } from "@/lib/analytics";
@@ -63,10 +54,9 @@ export default async function LessonPage({
   const position = lessons.findIndex((item) => item.id === lesson.id);
   const previous = position > 0 ? lessons[position - 1] : null;
   const next = position >= 0 && position < lessons.length - 1 ? lessons[position + 1] : null;
-  const contents = new Map(snapshot?.files.map((file) => [file.path, file.content]) ?? []);
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 sm:py-12">
+    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
       <Link
         href={`/projects/${project.id}/learn`}
         className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -103,109 +93,13 @@ export default async function LessonPage({
 
       <PathwayNav projectId={project.id} active="learn" className="mt-6" />
 
-      <section
-        aria-labelledby="goal-heading"
-        className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-      >
-        <p className="label-mono">After this lesson you can</p>
-        <p id="goal-heading" className="mt-2 text-[0.9375rem] leading-relaxed text-card-foreground">
-          {lesson.goal}
-        </p>
-      </section>
-
-      <LessonQuest
-        lesson={lesson}
-        repoUrl={project.repoUrl}
-        codeRefs={lesson.codeRefs
-          .map((ref) => {
-            const content = contents.get(ref.file);
-            return content === undefined
-              ? null
-              : { file: ref.file, content, note: ref.note };
-          })
-          .filter((ref): ref is { file: string; content: string; note: string } => ref !== null)}
-      />
-
-      <GitTimeTravel projectId={project.id} />
-
-      <article aria-labelledby="explain-heading" className="mt-8">
-        <div className="flex items-center gap-2">
-          <FileCode2 className="size-4 text-primary" aria-hidden="true" />
-          <h2 id="explain-heading" className="text-xl">
-            Read your code
-          </h2>
-        </div>
-        <div className="mt-4 rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-6">
-          <LessonMarkdown text={lesson.explain} />
-        </div>
-      </article>
-
-      <section aria-labelledby="code-heading" className="mt-10">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Code2 className="size-4 text-primary" aria-hidden="true" />
-            <h2 id="code-heading" className="text-xl">
-              Look at this code
-            </h2>
-          </div>
-          <p className="font-mono text-[0.6875rem] tracking-[0.1em] text-muted-foreground uppercase">
-            {lesson.codeRefs.length} files
-          </p>
-        </div>
-        <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          These are real files from your snapshot. Open one, follow the note, then come back
-          to the quiz.
-        </p>
-
-        <div className="mt-4 space-y-3">
-          {lesson.codeRefs.map((ref, index) => {
-            const content = contents.get(ref.file);
-            if (content === undefined) {
-              return (
-                <div
-                  key={ref.file}
-                  className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border bg-card p-4"
-                >
-                  <div className="flex min-w-0 items-start gap-3">
-                    <FileChip path={ref.file} repoUrl={project.repoUrl} />
-                    <p className="min-w-0 text-xs leading-relaxed text-muted-foreground">{ref.note}</p>
-                  </div>
-                  <span className="font-mono text-[0.625rem] text-muted-foreground uppercase">
-                    snapshot missing
-                  </span>
-                </div>
-              );
-            }
-
-            return (
-              <CodeBlock
-                key={ref.file}
-                path={ref.file}
-                content={content}
-                repoUrl={project.repoUrl}
-                note={ref.note}
-                open={index === 0}
-              />
-            );
-          })}
-        </div>
-      </section>
-
-      {lesson.codeRefs[0] ? (
-        <SandboxQuest
-          title={lesson.title}
-          initialCode={contents.get(lesson.codeRefs[0].file) ?? lesson.codeRefs[0].note}
-          language={lesson.codeRefs[0].file.split(".").pop() ?? "plaintext"}
-        />
-      ) : null}
-
-      <SpeechBubble mood={passed ? "proud" : "encouraging"} className="mt-8" label="Geko">
-        {lesson.gekoTip}
-      </SpeechBubble>
-
-      <Quiz
+      <FoundationWorkspace
         projectId={project.id}
-        lessonId={lesson.id}
+        repoUrl={project.repoUrl}
+        lesson={lesson}
+        lessons={lessons}
+        position={position}
+        snapshotFiles={snapshot?.files ?? []}
         quiz={lesson.quiz.map((question) => ({
           question: question.question,
           options: question.options,

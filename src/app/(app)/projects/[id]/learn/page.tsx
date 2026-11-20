@@ -48,7 +48,7 @@ export default async function LearnPage({ params }: { params: Promise<{ id: stri
   const percent = lessons.length > 0 ? Math.round((passedCount / lessons.length) * 100) : 0;
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-12">
+    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
       <Link
         href={`/projects/${project.id}`}
         className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"

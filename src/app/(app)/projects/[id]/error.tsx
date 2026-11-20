@@ -22,8 +22,8 @@ export default function ProjectError({
   }, [error]);
 
   return (
-    <div className="mx-auto flex min-h-[60vh] w-full max-w-3xl items-center px-4 py-16 sm:px-6">
-      <div className="w-full rounded-2xl border border-border bg-card p-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-10">
+    <div className="mx-auto flex min-h-[60vh] w-full max-w-6xl items-center px-4 py-16 sm:px-6">
+      <div className="mx-auto w-full max-w-3xl rounded-2xl border border-border bg-card p-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-10">
         <div className="flex justify-center">
           <GekoAvatar mood="calm" size="md" />
         </div>

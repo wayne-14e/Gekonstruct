@@ -18,7 +18,7 @@ export default async function ProfilePage() {
   const badges = profile?.badges ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-12">
+    <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="label-mono">Account</p>

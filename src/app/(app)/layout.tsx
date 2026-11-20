@@ -1,6 +1,8 @@
-import { AppHeader, HeaderLink } from "@/components/app/app-header";
+import { AppHeader } from "@/components/app/app-header";
+import { AppNav } from "@/components/app/app-nav";
 import { SiteFooter } from "@/components/app/site-footer";
 import { requireUser } from "@/lib/auth/session";
+import { getUserProfile } from "@/lib/auth/users";
 
 /**
  * Shell for every signed-in route. The guard lives here so no page can forget it, and
@@ -8,6 +10,11 @@ import { requireUser } from "@/lib/auth/session";
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  const profile = await getUserProfile(user.uid);
+  const headerUser = {
+    ...user,
+    displayName: profile?.displayName ?? user.displayName,
+  };
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -17,16 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       >
         Skip to content
       </a>
-      <AppHeader
-        user={user}
-        nav={
-          <>
-            <HeaderLink href="/dashboard" active>
-              Dashboard
-            </HeaderLink>
-          </>
-        }
-      />
+      <AppHeader user={headerUser} nav={<AppNav />} />
       <main id="main" className="flex-1">
         {children}
       </main>

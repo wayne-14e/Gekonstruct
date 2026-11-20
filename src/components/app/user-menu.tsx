@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, LayoutDashboard, UserRound } from "lucide-react";
+import { LogOut, LayoutDashboard, UserRound, FolderGit2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,13 +57,17 @@ export function UserMenu({ user }: { user: SessionUser }) {
           <LayoutDashboard aria-hidden="true" />
           Dashboard
         </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => router.push("/projects")}>
+          <FolderGit2 aria-hidden="true" />
+          Projects
+        </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => {
-            router.push("/dashboard");
+            router.push("/profile");
           }}
         >
           <UserRound aria-hidden="true" />
-          My projects
+          My profile
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" disabled={pending} onSelect={handleSignOut}>

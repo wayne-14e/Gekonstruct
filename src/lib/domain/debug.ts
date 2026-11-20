@@ -16,7 +16,12 @@ export const DEBUG_LIMITS = {
   passThreshold: 0.7,
   symptomMinChars: 10,
   symptomMaxChars: 2_000,
+  freeSessionsPerProject: 2,
 } as const;
+
+export function freeDebugSessionsRemaining(used: number): number {
+  return Math.max(0, DEBUG_LIMITS.freeSessionsPerProject - used);
+}
 
 const TextSchema = (max: number) => z.string().trim().min(1).max(max);
 const FilePathSchema = z.string().trim().min(1).max(300);
@@ -73,6 +78,12 @@ export type DebugSessionContent = z.infer<typeof DebugSessionContentSchema>;
 
 export const DebugSessionStatusSchema = z.enum(["pending", "done", "failed"]);
 export type DebugSessionStatus = z.infer<typeof DebugSessionStatusSchema>;
+
+export const DebugUsageDocSchema = z.object({
+  projectId: z.string().min(1),
+  sessionsUsed: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
+});
 
 /**
  * Full Firestore doc in `projects/{pid}/debugSessions/{sid}` (BLUEPRINT §7).

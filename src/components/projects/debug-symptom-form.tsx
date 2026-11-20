@@ -13,7 +13,13 @@ const EXAMPLE_SYMPTOMS = [
   "Client state and server rendered props get out of sync",
 ];
 
-export function DebugSymptomForm({ projectId }: { projectId: string }) {
+export function DebugSymptomForm({
+  projectId,
+  remainingSessions,
+}: {
+  projectId: string;
+  remainingSessions: number;
+}) {
   const router = useRouter();
   const [symptom, setSymptom] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,6 +48,7 @@ export function DebugSymptomForm({ projectId }: { projectId: string }) {
 
       if (!response.ok || !data.ok || !data.sessionId) {
         setError(data.error ?? "Failed to analyze bug. Check your connection and try again.");
+        if (response.status === 429 || data.sessionId) router.refresh();
         setLoading(false);
         return;
       }
@@ -63,6 +70,10 @@ export function DebugSymptomForm({ projectId }: { projectId: string }) {
       <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
         Paste an error message, stack trace, or describe what goes wrong. Gekonstruct will
         search your codebase, find evidence in your real files, and explain how to fix it.
+      </p>
+      <p className="mt-2 font-mono text-xs text-muted-foreground">
+        {remainingSessions} of {DEBUG_LIMITS.freeSessionsPerProject} free debug sessions remaining
+        for this project.
       </p>
 
       <div className="mt-4">

@@ -19,12 +19,15 @@ second pathway.
 **Auth & shell — done.** Signed-in users reach `/dashboard`; visitors are redirected to
 `/login`. Google sign-in (client popup) → `signInAction` verifies the ID token, provisions
 `users/{uid}`, sets an httpOnly `geko_session` cookie (14 days) and refreshes the route.
-Landing page, `/login`, branded 404 + error boundary, sticky header with account menu, XP
-chip, footer.
+Landing page, `/login`, `/profile` (editable name, earned badges, share progress, reset and
+sign-out actions), `/projects` (two-column project cards with pathway progress), and `/dashboard`
+(personal greeting, repo connection and the six latest activities), branded 404 + error boundary,
+sticky header with account menu, XP chip, footer. The user-menu link "My profile" opens `/profile`.
 
 **Ingestion — done (Phase 2).** The dashboard has a connect form (public GitHub URLs only)
-and project cards with stage badges. `createProject` enforces the 3-project cap inside a
-Firestore transaction and writes `project_created`. `/api/pipeline/ingest` reads the GitHub
+and a recent-activity feed; `/projects` lists project cards with stage badges and pathway progress.
+`createProject` enforces the 3-project cap inside a Firestore transaction and writes
+`project_created`. `/api/pipeline/ingest` reads the GitHub
 tree, drops node_modules/build output, lockfiles, `.env*`, binaries and blobs over 300 KB,
 selects up to 60 files / 150k chars by blueprint priority, truncates files to 12k, detects
 the stack deterministically and writes `snapshot/main` + stage `ingested`. Failures store
@@ -59,11 +62,13 @@ key). `completeLesson` re-grades on the server (≥70%), writes progress and
 
 **Debug & Learn — done (Phase 5).** Pathway 2 is live at `/projects/[id]/debug` and
 `/projects/[id]/debug/[sid]`. `/api/debug/run` takes `{ projectId, symptom }`, creates a
-`pending` session document, extracts keywords and matches the top-10 snapshot files using a
+`pending` session document after an atomic per-project usage reservation, extracts keywords and matches the top-10 snapshot files using a
 deterministic overlap function (path segments weighted +20/+10, bounded content frequency
 counts), builds the `debug-v1` prompt over the matched code + guidebook summary, calls DeepSeek
 with repair retry, audits every evidence file and backticked path against the snapshot, and writes
 `projects/{pid}/debugSessions/{sid}` (`done`/`failed`) + `debug_created` event.
+Free-plan users can start at most two debug sessions per project; a reservation counts as used
+even when analysis later fails, since the model call may already incur cost.
 `/projects/[id]/debug` provides the symptom input form with quick suggestion chips and session
 history. `/projects/[id]/debug/[sid]` renders the reported symptom, likely causes with confidence
 badges and shiki `<CodeBlock>` evidence previews, concrete fix steps, a why-it-works concept
@@ -73,7 +78,7 @@ pass, grants the `"bug-whisperer"` badge on the first completed debug session (w
 `progress.badges` and `users/{uid}.badges`), and records `debug_completed` inside a single
 Firestore transaction. The project hub ReadyPanel renders all three pathways.
 
-**M6 Polish — done (2026-11-20).** All three badges are awarded once and shown on the dashboard
+**M6 Polish — done (2026-11-20).** All three badges are awarded once and shown on the profile
 and the project hub shelf. Firestore analytics now cover all eleven BLUEPRINT §13 events: map
 sections report in as they are read (`overview_section_viewed`), lesson pages record
 `lesson_viewed`, and opening a project hub ≥24h after `analysis_ready` writes `return_visit`
@@ -99,8 +104,11 @@ short subtitle, two CTAs, limits line) above a full-width sample-pipeline window
 mac-style red/yellow/green dots, followed by the pathways, how-it-works and closing CTA.
 Signed-in visitors are redirected to `/dashboard`; signing out returns them to `/`.
 
-Last verified: 2026-11-20 — `next build` green, `npx tsc --noEmit` green, `npm run lint`
-green, `npm test` green (86/86), `firebase deploy --only firestore:rules` released to
+Last verified: 2026-11-20 — `npm run build`, `npx tsc --noEmit`, `npm run lint`, and
+`npm test` green (95/95). The profile share post is user-triggered and uses native sharing with
+clipboard fallback; the two-session quota is enforced with Admin SDK transactions. Its usage
+subcollection is unmatched by client Firestore rules, so no rules redeploy is required.
+`firebase deploy --only firestore:rules` previously released the owner-scoped rules to
 `gekonstruct-14174`. All 3 pathways (Architecture Map, Foundations Lessons,
 Debug & Learn) functional end-to-end with badges and the full §13 event set. Previously
 verified 2026-11-19: Foundations live run on
@@ -134,14 +142,15 @@ on `wayne-14e/Verdict` (6 layers, 7 flow steps, 11 concepts, ~41s); 2026-11-13: 
   POST /api/pipeline/lessons1 → lessons part 1 (stage "lessons1")
   POST /api/pipeline/lessons2 → lessons part 2 (stage "ready" + lessonCount)
   router.refresh() after each stage → server component re-renders progress
-  POST /api/debug/run(symptom) → debugSessions/{sid} + debug_created event
+  POST /api/debug/run(symptom) → transactional free-plan reservation + debugSessions/{sid} + debug_created event
   completeLesson(projectId, lessonId, answers) server action → progress + XP + foundation-builder transaction
   completeDebugSession(projectId, sid, answers) server action → progress + XP + bug-whisperer badge
   markOverviewSectionViewed(projectId, section) server action → overviewSections + map-reader transaction
+  updateDisplayName / clearUserProgress server actions → editable profile / owned-project recursive deletion
   after() on lesson/hub render → lesson_viewed / return_visit (deterministic ids)
 [Next.js server]
   server actions: signIn, signOut, createProject, completeLesson, completeDebugSession,
-                 markOverviewSectionViewed
+                 markOverviewSectionViewed, updateDisplayName, clearUserProgress
   route handlers: pipeline stages (idempotent, ≤60s), debug (/api/debug/run)
   lib: firebase/client (browser), firebase/admin (server), github, projects, debug, llm,
        prompts, lessons, quiz, badges, analytics,
@@ -155,8 +164,9 @@ on `wayne-14e/Verdict` (6 layers, 7 flow steps, 11 concepts, ~41s); 2026-11-13: 
 ```
 
 Routes as built: `/` (landing, signed-out only — a signed-in visitor is redirected to
-`/dashboard`), `/login`, `/dashboard` (guarded in `src/app/(app)/layout.tsx`),
-`/projects/[id]` (pipeline runner + guidebook hub or snapshot panel),
+`/dashboard`), `/login`, `/dashboard` (greeting + latest activity, guarded in
+`src/app/(app)/layout.tsx`), `/profile`,
+`/projects` (owned project list + pathway progress), `/projects/[id]` (pipeline runner + guidebook hub or snapshot panel),
 `/projects/[id]/overview` (architecture pathway), `/projects/[id]/learn` (Foundations list),
 `/projects/[id]/learn/[lessonId]` (lesson + quiz), `/projects/[id]/debug` (debug symptom form + session list),
 `/projects/[id]/debug/[sid]` (debug session walkthrough + quiz), `/api/pipeline/ingest`,
@@ -168,10 +178,12 @@ Key modules as built: `src/lib/firebase/{config,client,admin}.ts`, `src/lib/auth
 `src/lib/domain/{user,project,architecture,lesson,progress,event,debug}.ts`,
 `src/lib/pipeline/{ingest,stack,ingest-runner,architecture,architecture-runner,
 lessons,lessons-runner,lessons-route,debug,debug-runner}.ts`,
-`src/lib/{github,projects,debug,llm,prompts,lessons,quiz,badges,analytics,code-language}.ts`,
-`src/lib/nav.ts`, `src/app/actions/{auth,projects,lessons,debug,progress}.ts`,
+`src/lib/{github,projects,debug,activity,llm,prompts,lessons,quiz,badges,analytics,code-language}.ts`,
+`src/lib/domain/activity.ts`,
+`src/lib/nav.ts`, `src/app/actions/{auth,projects,lessons,debug,progress,profile}.ts`,
 `src/components/{brand,auth,app,projects}/*` (incl. `badge-shelf.tsx`, `pathway-nav.tsx`,
-`overview-tracker.tsx`, `guidebook-parts.tsx`, `code-block.tsx`,
+`profile-actions.tsx`, `app-nav.tsx`, `project-progress-card.tsx`, `overview-tracker.tsx`,
+`recent-activity-feed.tsx`, `guidebook-parts.tsx`, `code-block.tsx`,
 `lesson-markdown.tsx`, `quiz.tsx`, `debug-quiz.tsx`, `debug-symptom-form.tsx`), `scripts/dev-session.mjs` (dev-only cookie minter).
 
 Auth boundary: browser keeps the Firebase client session (for realtime Firestore reads);
@@ -180,17 +192,22 @@ Route handlers and server actions call `getCurrentUser()`; pages of the `(app)` 
 `requireUser()`.
 
 Client/server boundary: server components by default; `"use client"` only for the sign-in
-button, account menu, connect form, pipeline runner, overview tracker and quizzes.
+button, account menu, route-aware app navigation, profile forms/confirmation dialog and
+progress sharing, connect form, pipeline runner, overview tracker and quizzes.
 
 ## Data Model
 
-As built through Phase 4 (all timestamps are epoch **milliseconds**, not Firestore Timestamp):
+As built through Phase 6 (all timestamps are epoch **milliseconds**, not Firestore Timestamp):
 
 - `users/{uid}` — `{ email, displayName, photoURL|null, totalXp: 0, badges: [], createdAt }`.
-  Written inside a transaction: created once on first sign-in, afterwards only
-  `email`/`displayName`/`photoURL` refresh, so XP and badges can never be reset by a login.
-  `totalXp` and `badges` are incremented/unioned only inside the lesson, debug and overview
-  section transactions.
+  Written inside a transaction: created once on first sign-in, afterwards only `email` and
+  `photoURL` refresh; `displayName` is user-editable and is preserved across later sign-ins.
+  `totalXp` and `badges` are awarded inside lesson, debug and overview transactions and reset
+  by the authenticated profile reset action.
+- `users/{uid}/debugUsage/{pid}` — `{ projectId, sessionsUsed, updatedAt }`. Admin-only
+  per-project debug-session reservations; nested documents have no client Firestore rule.
+  Atomic reservation prevents concurrent requests from exceeding the free-plan limit of two;
+  failed analysis attempts count. Profile reset deletes these records.
 - `projects/{pid}` — `{ ownerUid, repoUrl, owner, repo, title, stage, stageError: string|null,
   stack: Stack|null, createdAt, updatedAt, lessonCount }`. Created by `createProject` inside a
   transaction that re-counts the owner's projects (cap 3). Stage values: `created`,
@@ -503,10 +520,129 @@ Append-only. Newest last.
   Vercel covers page views and performance. No env vars or secrets are required; Vercel injects
   the endpoints at deploy time. Rejected: sending product events through Vercel custom events —
   they would no longer be queryable per project/owner from Firestore in M7.
+- **2026-11-20 — The profile page owns editable identity and full progress reset.** `/profile`
+  shows the editable display name, earned badge shelf and pathway progress for each owned
+  project. Reset recursively deletes only projects matching the verified user's `ownerUid`,
+  including nested snapshots, lessons, sessions, events and progress, then clears user XP and
+  badges while preserving the sign-in account and display name. Confirmation requires typing
+  `DELETE`. This profile surface was added at the user's request; BLUEPRINT §9 only specifies
+  the dashboard. Rejected: deleting the Firebase Auth account (the user asked to erase learning
+  data, not identity) and deleting project roots only (Firestore subcollections would remain).
+- **2026-11-20 — Project progress lives on `/projects`, not in the profile.** A new signed-in
+  projects page combines dashboard-style repository cards with per-pathway progress in a
+  two-column desktop grid. The profile is reserved for identity, badges and account actions.
+  Rejected: keeping project progress on both pages (duplicate destinations make the account
+  and workspace responsibilities unclear).
+- **2026-11-20 — Dashboard shows a personalized greeting and recent recorded activity.** The
+  project cards moved to `/projects`; `/dashboard` keeps repository connection and derives a
+  compact activity timeline from validated per-project analytics events. XP and badge copy
+  comes from each event's recorded reward metadata. Rejected: mock activity or a second activity
+  collection (the existing event stream is the source of truth).
+- **2026-11-20 — Free plan debug allowance is two sessions per project.** The server reserves
+  usage and creates the pending session in one Firestore transaction, serializing concurrent
+  requests. Attempts count when reserved, including later failures, because analysis may incur
+  model cost. The usage record lives in `users/{uid}/debugUsage/{pid}`, outside the client-writable
+  project tree; the current Firestore rules do not match nested user subcollections. Existing
+  session documents seed the counter on first use, and profile reset removes reservations.
+  Every account is treated as free until paid-plan entitlements exist.
+  Rejected: counting only successful `debug_created` events (failed calls would bypass the cap)
+  and a client-writable project field (clients could reset it).
+- **2026-11-20 — Profile progress sharing is a direct, user-triggered share.** The profile
+  renders a branded PNG from the user's current display name, XP and earned badge names; the
+  browser's native share sheet sends the image with a caption and `https://gekonstruct.dev`
+  invite where file sharing is supported. Otherwise the image downloads and the caption is
+  shared or copied. No public profile route or persistent public data is created.
+  This is a narrow exception to BLUEPRINT's out-of-scope social features, explicitly requested
+  by the user. Rejected: a social feed, public profile directory, or leaderboard.
 
 ## Change Log
 
 Newest first.
+
+- **2026-11-20 — Share profile progress as an achievement.**
+  Files: `src/app/(app)/profile/page.tsx`,
+  `src/components/app/share-progress-button.tsx`, `src/lib/share-progress.ts`,
+  `src/lib/share-progress.test.ts`, `PROJECT_CONTEXT.md`.
+  Why: let users show their learning progress and invite others to Gekonstruct.
+  What: **Share progress** renders a branded 1200×630 PNG with the user's name, XP, earned
+  badges and `gekonstruct.dev` invitation, then shares it with a caption via the native file
+  share sheet where supported. Otherwise it downloads the banner and shares/copies the caption.
+  No public profile data is exposed automatically.
+  Verify: on a mobile browser with file sharing, open `/profile` → **Share progress** → choose
+  Telegram and confirm the image and caption are attached. Where file sharing is unsupported,
+  confirm the banner downloads and the caption is shared or copied with status feedback.
+
+- **2026-11-20 — Limit free-plan Debug & Learn to two sessions per project.**
+  Files: `src/lib/domain/debug.ts`, `src/lib/domain/debug.test.ts`, `src/lib/debug.ts`,
+  `src/app/api/debug/run/route.ts`, `src/app/(app)/projects/[id]/debug/page.tsx`,
+  `src/components/projects/debug-symptom-form.tsx`, `src/app/actions/profile.ts`,
+  `PROJECT_CONTEXT.md`.
+  Why: bound free-tier model usage without letting concurrent requests overrun the allowance.
+  What: atomically reserve one of two attempts per project before analysis; every reservation
+  counts, even if the run later fails. The page shows remaining sessions and hides the form when
+  exhausted. Profile reset also removes server-owned usage records.
+  Verify: on a project with a ready map, start two debug sessions and confirm the remaining
+  count updates; the third request receives HTTP 429 and the page shows the limit state. Confirm
+  a failed analysis still consumes one attempt, and profile reset clears the project and usage.
+
+- **2026-11-20 — Limit the dashboard activity feed to six entries.**
+  Files: `src/lib/activity.ts`, `PROJECT_CONTEXT.md`.
+  Why: keep the dashboard focused on the user's most recent actions.
+  What: the feed now returns only the six newest eligible events across owned projects.
+  Verify: open `/dashboard` with more than six recorded activities and confirm only the newest
+  six are shown.
+
+- **2026-11-20 — Personalized dashboard greeting and recent activity feed.**
+  Files: `src/app/(app)/dashboard/page.tsx`, `src/app/(app)/projects/page.tsx`,
+  `src/lib/{activity.ts,domain/activity.ts,domain/event.ts}`,
+  `src/components/app/recent-activity-feed.tsx`, `src/lib/domain/activity.test.ts`,
+  `PROJECT_CONTEXT.md`.
+  Why: focus the dashboard on the user’s progress while keeping project browsing on `/projects`.
+  What: dashboard title greets the saved profile name and its project cards are replaced by a
+  latest-activity feed assembled from validated existing project events. It reports lesson XP,
+  pathway bonuses, badge awards, quiz outcomes, project setup and pipeline milestones. `/projects`
+  is titled "Your projects".
+  Verify: open `/dashboard`; confirm the greeting uses the editable name and activity entries link
+  to their project; pass a lesson quiz and confirm its XP/badge details; open `/projects` and
+  confirm the title reads "Your projects".
+
+- **2026-11-20 — Moved project progress to a dedicated two-column Projects page.**
+  Files: `src/app/(app)/projects/page.tsx`, `src/app/(app)/profile/page.tsx`,
+  `src/app/(app)/layout.tsx`, `src/components/app/{app-nav,user-menu}.tsx`,
+  `src/components/projects/project-progress-card.tsx`, `PROJECT_CONTEXT.md`.
+  Why: separate profile/account settings from project browsing while keeping each project's
+  pipeline and learning progress easy to scan.
+  What: `/projects` now combines repository, stage, stack, recent activity and all three pathway
+  progress meters in two columns on desktop (one on narrow screens). `/profile` no longer queries
+  or renders projects. Added an active-aware Projects nav link beside Dashboard and a Projects
+  shortcut in the account menu.
+  Verify: open **Projects** from the header or account menu; confirm two cards per row at desktop
+  widths, each with pipeline details and map/Foundations/Debug progress; confirm `/profile` shows
+  only profile, badges and account actions.
+
+- **2026-11-20 — Removed the badge shelf from the dashboard.**
+  Files: `src/app/(app)/dashboard/page.tsx`, `PROJECT_CONTEXT.md`.
+  Why: the profile page is now the home for badges, keeping the dashboard focused on connecting
+  and opening projects.
+  What: removed the badge shelf from the dashboard; the profile and project hub badge displays
+  remain unchanged.
+  Verify: open `/dashboard` and confirm no badge block appears; open `/profile` to see badges.
+
+- **2026-11-20 — My profile page, editable name, project progress and full data reset.**
+  Files: `src/app/(app)/profile/page.tsx`, `src/app/(app)/layout.tsx`,
+  `src/app/actions/profile.ts`, `src/components/app/{profile-actions,user-menu}.tsx`,
+  `src/lib/auth/users.ts`, `PROJECT_CONTEXT.md`.
+  Why: give signed-in users one place to manage their identity, achievements and project learning
+  state instead of the account menu linking "My projects".
+  What: "My profile" now opens `/profile`; the page shows an editable name, earned badges, and
+  per-project map, Foundations and Debug progress. The name persists through later Google
+  sign-ins. Its final Account actions section offers a sign-out button and a confirmed reset
+  that recursively removes owned projects and subcollections, then resets XP/badges without
+  deleting the user's account or chosen name.
+  Verify: open account menu → My profile; save a new name and confirm it remains after refresh
+  and a later sign-in; check badges and each project's pathway progress; open "Erase all
+  progress", cancel once, then type `DELETE` to confirm and verify project cards disappear,
+  XP/badges reset, and the same account can sign in and reconnect a project.
 
 - **2026-11-20 — Vercel Analytics + Speed Insights mounted.**
   Files: `src/app/layout.tsx`, `PROJECT_CONTEXT.md`.
@@ -755,8 +891,6 @@ Older entries, one line each (full detail in git history):
   IDE pane plus connection/dependency graphs and other visuals, instead of long prose. Needs a
   page-architecture and prompt-shape change (code refs, graph data, narrow-viewport fallback),
   so it was deliberately deferred out of M6.
-- **Separate pages for the project list and the profile.** Today the dashboard mixes project
-  cards, account state and badges; split `/projects` and `/profile` once navigation grows.
 - **Reduce architecture prompt cost/latency** if testers connect very large repos: per-file
   budget for prose-heavy files, or split the call into "layers" and "concepts".
 - **Cache the built prompt** (or the raw model answer) per snapshot so a failed repair does

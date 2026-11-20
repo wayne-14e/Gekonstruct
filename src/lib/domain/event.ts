@@ -20,6 +20,14 @@ export const ANALYTICS_EVENT_TYPES = [
 
 export type AnalyticsEventType = (typeof ANALYTICS_EVENT_TYPES)[number];
 
+export const AnalyticsEventDocSchema = z.object({
+  type: z.enum(ANALYTICS_EVENT_TYPES),
+  at: z.number().int().nonnegative(),
+  meta: z.record(z.string(), z.unknown()).default({}),
+});
+
+export type AnalyticsEventDoc = z.infer<typeof AnalyticsEventDocSchema>;
+
 /**
  * The four readable sections of `/projects/[id]/overview`. `map-reader` is awarded when
  * every one of these has been seen (BLUEPRINT §7: "overview fully expanded/read").

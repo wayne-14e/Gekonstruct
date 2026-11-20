@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/session";
-import { debugSessionsCollectionRef } from "@/lib/debug";
-import { DEBUG_LIMITS } from "@/lib/domain/debug";
+import {
+  debugSessionsCollectionRef,
+  debugUsageDocRef,
+} from "@/lib/debug";
+import {
+  DEBUG_LIMITS,
+  DebugUsageDocSchema,
+  freeDebugSessionsRemaining,
+} from "@/lib/domain/debug";
 import { GuidebookDocSchema } from "@/lib/domain/architecture";
 import { ProjectDocSchema, SnapshotDocSchema } from "@/lib/domain/project";
+import { adminDb } from "@/lib/firebase/admin";
 import { LlmError } from "@/lib/llm";
 import { matchFilesBySymptom } from "@/lib/pipeline/debug";
 import { runDebugAnalysis } from "@/lib/pipeline/debug-runner";
@@ -95,15 +103,69 @@ export async function POST(request: Request) {
   const sessionRef = debugSessionsCollectionRef(projectId).doc();
   const sessionId = sessionRef.id;
   const now = Date.now();
+  const usageRef = debugUsageDocRef(user.uid, projectId);
 
-  // Create session with status "pending" (BLUEPRINT §7 / §8)
-  await sessionRef.set({
-    id: sessionId,
-    projectId,
-    symptom,
-    status: "pending",
-    createdAt: now,
-  });
+  let reservation: { ok: true } | { ok: false; reason: "limit" | "not-found" };
+  try {
+    reservation = await adminDb().runTransaction(async (tx) => {
+      const [currentProject, usageSnap, existingSessions] = await Promise.all([
+        tx.get(projectRef),
+        tx.get(usageRef),
+        tx.get(debugSessionsCollectionRef(projectId)),
+      ]);
+
+      if (!currentProject.exists || currentProject.get("ownerUid") !== user.uid) {
+        return { ok: false, reason: "not-found" };
+      }
+
+      let sessionsUsed = existingSessions.size;
+      if (usageSnap.exists) {
+        const parsedUsage = DebugUsageDocSchema.safeParse(usageSnap.data());
+        if (!parsedUsage.success || parsedUsage.data.projectId !== projectId) {
+          throw new Error(`Debug usage data is invalid for project ${projectId}.`);
+        }
+        sessionsUsed = Math.max(sessionsUsed, parsedUsage.data.sessionsUsed);
+      }
+
+      if (freeDebugSessionsRemaining(sessionsUsed) === 0) {
+        return { ok: false, reason: "limit" };
+      }
+
+      tx.set(usageRef, {
+        projectId,
+        sessionsUsed: sessionsUsed + 1,
+        updatedAt: now,
+      });
+      tx.create(sessionRef, {
+        id: sessionId,
+        projectId,
+        symptom,
+        status: "pending",
+        createdAt: now,
+      });
+
+      return { ok: true };
+    });
+  } catch (error) {
+    console.error(`debug session reservation failed for project ${projectId}`, error);
+    return NextResponse.json(
+      { ok: false, error: "Could not reserve a debug session. Please try again." },
+      { status: 500 },
+    );
+  }
+
+  if (!reservation.ok) {
+    if (reservation.reason === "not-found") {
+      return NextResponse.json({ ok: false, error: "Project not found." }, { status: 404 });
+    }
+    return NextResponse.json(
+      {
+        ok: false,
+        error: `The free plan allows ${DEBUG_LIMITS.freeSessionsPerProject} debug sessions per project, and this project has used them all.`,
+      },
+      { status: 429 },
+    );
+  }
 
   try {
     const matchedFiles = matchFilesBySymptom(parsedSnapshot.data.files, symptom, 10);

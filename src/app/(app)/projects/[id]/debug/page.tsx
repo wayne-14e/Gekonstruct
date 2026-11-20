@@ -19,7 +19,8 @@ import { StageBadge } from "@/components/projects/stage-badge";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
 import { getUserProfile } from "@/lib/auth/users";
-import { listDebugSessions } from "@/lib/debug";
+import { getDebugSessionsUsed, listDebugSessions } from "@/lib/debug";
+import { DEBUG_LIMITS, freeDebugSessionsRemaining } from "@/lib/domain/debug";
 import { emptyProgressDoc, type ProgressDoc } from "@/lib/domain/progress";
 import { getProgress } from "@/lib/lessons";
 import { getGuidebook, getProject, getSnapshot } from "@/lib/projects";
@@ -38,14 +39,17 @@ export default async function DebugPage({ params }: { params: Promise<{ id: stri
 
   if (!project) notFound();
 
-  const [sessions, progress, guidebook, snapshot] = await Promise.all([
+  const [sessions, progress, guidebook, snapshot, recordedSessionsUsed] = await Promise.all([
     listDebugSessions(project.id),
     getProgress(project.id, user.uid),
     getGuidebook(project.id),
     getSnapshot(project.id),
+    getDebugSessionsUsed(user.uid, project.id),
   ]);
 
   const safeProgress: ProgressDoc = progress ?? emptyProgressDoc();
+  const sessionsUsed = Math.max(sessions.length, recordedSessionsUsed);
+  const sessionsRemaining = freeDebugSessionsRemaining(sessionsUsed);
   const completedSessionCount = Object.values(safeProgress.debug).filter(
     (entry) => entry.completed,
   ).length;
@@ -94,9 +98,22 @@ export default async function DebugPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {debugReady ? (
-        <div className="mt-8">
-          <DebugSymptomForm projectId={project.id} />
-        </div>
+        sessionsRemaining > 0 ? (
+          <div className="mt-8">
+            <DebugSymptomForm projectId={project.id} remainingSessions={sessionsRemaining} />
+          </div>
+        ) : (
+          <section className="mt-8 rounded-2xl border border-[#584211] bg-[#2b1f06] p-5 sm:p-6">
+            <p className="label-mono text-[#ffc53d]">Free plan limit reached</p>
+            <h2 className="mt-2 text-lg font-semibold text-foreground">
+              No debug sessions remaining
+            </h2>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+              This project has used all {DEBUG_LIMITS.freeSessionsPerProject} free debug sessions.
+              Your past sessions are still available below.
+            </p>
+          </section>
+        )
       ) : (
         <section className="mt-8 rounded-2xl border border-border bg-card p-6">
           <p className="label-mono">Locked</p>

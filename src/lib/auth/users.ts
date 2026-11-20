@@ -16,7 +16,8 @@ export async function getUserProfile(uid: string): Promise<UserDoc | null> {
 }
 
 /**
- * Create the profile on first sign-in, refresh the mutable display fields after that.
+ * Create the profile on first sign-in, refresh auth-derived fields after that.
+ * The display name is user-editable after provisioning, so later sign-ins must preserve it.
  * A transaction keeps `totalXp`/`badges` from being reset by a later sign-in.
  */
 export async function ensureUserDoc(profile: {
@@ -36,7 +37,6 @@ export async function ensureUserDoc(profile: {
     const data = emptyUserDoc(profile);
     tx.update(ref, {
       email: data.email,
-      displayName: data.displayName,
       photoURL: data.photoURL,
     });
   });

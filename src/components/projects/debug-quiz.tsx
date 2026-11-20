@@ -78,8 +78,8 @@ export function DebugQuiz({
         }
 
         if (payload.badgeAwarded) {
-          toast.success("🏆 Badge Unlocked: Bug Whisperer!", {
-            description: "Completed your first debug session.",
+          toast.success("Badge unlocked: Bug Whisperer", {
+            description: "You completed your first debug session.",
           });
         }
       } else {
@@ -166,6 +166,7 @@ export function DebugQuiz({
                       key={option}
                       onClick={() => choose(questionIndex, optionIndex)}
                       disabled={locked}
+                      aria-pressed={isSelected}
                       className={cn(
                         "flex w-full items-start gap-3 rounded-xl border p-3.5 text-left text-sm transition-all",
                         isSelected
@@ -178,16 +179,23 @@ export function DebugQuiz({
                     >
                       <span
                         className={cn(
-                          "grid size-5 shrink-0 place-items-center rounded-md border font-mono text-[0.6875rem]",
+                          "mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border-2",
                           isSelected
-                            ? "border-primary bg-primary text-[#08140a]"
-                            : "border-border bg-card text-muted-foreground",
-                          showAsCorrect && "border-primary bg-primary text-[#08140a]",
-                          showAsIncorrect && "border-[#ff7a70] bg-[#ff7a70] text-[#2c0f0f]",
+                            ? "border-primary bg-[#0e2a1c]"
+                            : "border-[#3a4b61] bg-card",
+                          showAsCorrect && "border-primary bg-[#0e2a1c]",
+                          showAsIncorrect && "border-[#ff7a70] bg-[#2c0f0f]",
                         )}
                         aria-hidden="true"
                       >
-                        {String.fromCharCode(65 + optionIndex)}
+                        {isSelected || showAsCorrect ? (
+                          <span
+                            className={cn(
+                              "size-1.5 rounded-full",
+                              showAsIncorrect ? "bg-[#ff7a70]" : "bg-primary",
+                            )}
+                          />
+                        ) : null}
                       </span>
                       <span className="flex-1 leading-relaxed">{option}</span>
                     </button>

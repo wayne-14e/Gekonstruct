@@ -73,6 +73,7 @@ export async function completeDebugSession(input: unknown): Promise<CompleteDebu
   const progressRef = progressDocRef(projectId, user.uid);
   const userRef = userDocRef(user.uid);
   const eventRef = projectRef.collection("events").doc();
+  const pathwayEventRef = projectRef.collection("events").doc();
 
   try {
     const outcome = await adminDb().runTransaction(async (tx) => {
@@ -119,6 +120,7 @@ export async function completeDebugSession(input: unknown): Promise<CompleteDebu
         badges: nextBadges,
         xp: progress.xp + xpAwarded,
         pathwayBonusAwarded: progress.pathwayBonusAwarded,
+        overviewSections: progress.overviewSections,
       });
 
       const userUpdate: Record<string, unknown> = {};
@@ -145,6 +147,19 @@ export async function completeDebugSession(input: unknown): Promise<CompleteDebu
           badgeAwarded,
         },
       });
+
+      if (passedNow && !alreadyCompleted) {
+        tx.set(pathwayEventRef, {
+          type: "pathway_completed",
+          at: now,
+          meta: {
+            pathway: "debug",
+            sessionId,
+            xpAwarded,
+            badgeAwarded,
+          },
+        });
+      }
 
       return {
         alreadyCompleted,

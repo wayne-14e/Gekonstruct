@@ -41,8 +41,8 @@ user has updated §4's diagram to DeepSeek.
 from the stored snapshot + stack, validates it with zod and against real snapshot paths, then
 writes `guidebook/main` with provenance (`model`, `promptVersion`). One repair retry is
 allowed. `/projects/[id]/overview` renders the summary, an outside-in layer accordion (native
-`<details>`, no client JS), the request flow, the concepts grid, GitHub-linked file chips and
-the optional mermaid source.
+`<details>`), the request flow, the concepts grid, GitHub-linked file chips and the optional
+mermaid source; a small `OverviewTracker` island reports sections the reader has seen.
 
 **Foundations — done (Phase 4).** `/projects/[id]` runs ingest → architecture → lessons1
 → lessons2 (four idempotent steps) and reaches `ready`. `/api/pipeline/lessons1|lessons2`
@@ -73,6 +73,19 @@ pass, grants the `"bug-whisperer"` badge on the first completed debug session (w
 `progress.badges` and `users/{uid}.badges`), and records `debug_completed` inside a single
 Firestore transaction. The project hub ReadyPanel renders all three pathways.
 
+**M6 Polish — done (2026-11-20).** All three badges are awarded once and shown on the dashboard
+and the project hub shelf. Firestore analytics now cover all eleven BLUEPRINT §13 events: map
+sections report in as they are read (`overview_section_viewed`), lesson pages record
+`lesson_viewed`, and opening a project hub ≥24h after `analysis_ready` writes `return_visit`
+once. `foundation-builder` is awarded in the lesson transaction, `map-reader` in the overview
+section transaction, and `bug-whisperer` on the first completed debug session. The shared
+`Map / Learn / Debug` switcher appears on the hub and every pathway page. `PipelineRunner` now
+shows per-step saved/next/failed states, a progress bar, elapsed seconds and a clear
+session-expired redirect, keeping completed stages on a retry. `/projects/[id]` ships a loading
+skeleton and a segment error boundary; debug explains that it unlocks after the map exists; the
+debug quiz uses the same dot markers as Foundations. Firestore rules were deployed to
+`gekonstruct-14174`.
+
 Design system live (redesigned 2026-11-13): dark IDE surface (`#0b0f14`), Space Grotesk
 for all UI + display with JetBrains Mono for labels, file paths and code (no serif/italic
 anywhere), lime `#5be000` primary with chunky 3px-edge buttons, chameleon-skin gradient
@@ -84,9 +97,11 @@ short subtitle, two CTAs, limits line) above a full-width sample-pipeline window
 mac-style red/yellow/green dots, followed by the pathways, how-it-works and closing CTA.
 Signed-in visitors are redirected to `/dashboard`; signing out returns them to `/`.
 
-Last verified: 2026-11-19 — `next build` green, `npx tsc --noEmit` green, `npm run lint`
-green, `npm test` green (71/71). All 3 pathways (Architecture Map, Foundations Lessons,
-Debug & Learn) functional end-to-end. Previously verified 2026-11-19: Foundations live run on
+Last verified: 2026-11-20 — `next build` green, `npx tsc --noEmit` green, `npm run lint`
+green, `npm test` green (86/86), `firebase deploy --only firestore:rules` released to
+`gekonstruct-14174`. All 3 pathways (Architecture Map, Foundations Lessons,
+Debug & Learn) functional end-to-end with badges and the full §13 event set. Previously
+verified 2026-11-19: Foundations live run on
 `wayne-14e/Verdict` (6 stored lessons, quiz grading, 20 XP + 50 bonus); 2026-11-18: architecture
 on `wayne-14e/Verdict` (6 layers, 7 flow steps, 11 concepts, ~41s); 2026-11-13: live ingestion of
 `shadcn-ui/taxonomy`, `firebase/quickstart-js` and `vercel/next-learn`.
@@ -101,7 +116,7 @@ on `wayne-14e/Verdict` (6 layers, 7 flow steps, 11 concepts, ~41s); 2026-11-13: 
 | 3 | M3 Architecture ✅ | `/api/pipeline/architecture`, prompts module, zod schemas, repair retry, `guidebook` doc, `/overview` page (layers, data flow, concepts, file chips, optional mermaid) | guidebook passes zod on a real repo; overview renders real layers |
 | 4 | M4 Foundations ✅ | `/api/pipeline/lessons1` + `lessons2`, `/learn` list + lesson page, shiki code blocks, `Quiz`, `completeLesson`, XP transaction, progress state | pass quiz → XP in `users/{uid}`; fail → no XP, retry allowed |
 | 5 | M5 Debug ✅ | `/api/debug/run`, symptom form + session list, session page (causes/fix steps/whyItWorks/quiz), `completeDebugSession` | real symptom → evidence files that exist in the snapshot |
-| 6 | M6 Polish | Badges, analytics events, `PipelineRunner` retry UX, error/empty states everywhere, rules deployed, Geko polish | full journey with zero console errors |
+| 6 | M6 Polish ✅ | Badges, analytics events, `PipelineRunner` retry UX, error/empty states everywhere, rules deployed, Geko polish | full journey with zero console errors |
 | 7 | M7 Validation | vitest green, `next build` green, `docs/TEST_PLAN.md` mapping events → §1 metrics | 5-tester checklist ready |
 
 ## Architecture Map
@@ -115,15 +130,19 @@ on `wayne-14e/Verdict` (6 layers, 7 flow steps, 11 concepts, ~41s); 2026-11-13: 
   POST /api/pipeline/architecture → guidebook/main (stage "architecture")
   POST /api/pipeline/lessons1 → lessons part 1 (stage "lessons1")
   POST /api/pipeline/lessons2 → lessons part 2 (stage "ready" + lessonCount)
-  completeLesson(projectId, lessonId, answers) server action → progress + XP transaction
   router.refresh() after each stage → server component re-renders progress
   POST /api/debug/run(symptom) → debugSessions/{sid} + debug_created event
+  completeLesson(projectId, lessonId, answers) server action → progress + XP + foundation-builder transaction
   completeDebugSession(projectId, sid, answers) server action → progress + XP + bug-whisperer badge
+  markOverviewSectionViewed(projectId, section) server action → overviewSections + map-reader transaction
+  after() on lesson/hub render → lesson_viewed / return_visit (deterministic ids)
 [Next.js server]
-  server actions: signIn, signOut, createProject, completeLesson, completeDebugSession
+  server actions: signIn, signOut, createProject, completeLesson, completeDebugSession,
+                 markOverviewSectionViewed
   route handlers: pipeline stages (idempotent, ≤60s), debug (/api/debug/run)
   lib: firebase/client (browser), firebase/admin (server), github, projects, debug, llm,
-       prompts, lessons, quiz, domain/{project,architecture,lesson,progress,debug},
+       prompts, lessons, quiz, badges, analytics,
+       domain/{project,architecture,lesson,progress,event,debug},
        pipeline/{ingest,stack,architecture,lessons,debug,debug-runner}
 [Firestore]
   users/{uid}
@@ -139,15 +158,17 @@ Routes as built: `/` (landing, signed-out only — a signed-in visitor is redire
 `/projects/[id]/learn/[lessonId]` (lesson + quiz), `/projects/[id]/debug` (debug symptom form + session list),
 `/projects/[id]/debug/[sid]` (debug session walkthrough + quiz), `/api/pipeline/ingest`,
 `/api/pipeline/architecture`, `/api/pipeline/lessons1`, `/api/pipeline/lessons2`,
-`/api/debug/run` (all POST), `not-found`, `error`.
+`/api/debug/run` (all POST), `not-found`, `error`, plus `projects/[id]/loading.tsx` and
+`projects/[id]/error.tsx`.
 
 Key modules as built: `src/lib/firebase/{config,client,admin}.ts`, `src/lib/auth/{session,users}.ts`,
-`src/lib/domain/{user,project,architecture,lesson,progress,debug}.ts`,
+`src/lib/domain/{user,project,architecture,lesson,progress,event,debug}.ts`,
 `src/lib/pipeline/{ingest,stack,ingest-runner,architecture,architecture-runner,
 lessons,lessons-runner,lessons-route,debug,debug-runner}.ts`,
-`src/lib/{github,projects,debug,llm,prompts,lessons,quiz,code-language}.ts`, `src/lib/nav.ts`,
-`src/app/actions/{auth,projects,lessons,debug}.ts`,
-`src/components/{brand,auth,app,projects}/*` (incl. `guidebook-parts.tsx`, `code-block.tsx`,
+`src/lib/{github,projects,debug,llm,prompts,lessons,quiz,badges,analytics,code-language}.ts`,
+`src/lib/nav.ts`, `src/app/actions/{auth,projects,lessons,debug,progress}.ts`,
+`src/components/{brand,auth,app,projects}/*` (incl. `badge-shelf.tsx`, `pathway-nav.tsx`,
+`overview-tracker.tsx`, `guidebook-parts.tsx`, `code-block.tsx`,
 `lesson-markdown.tsx`, `quiz.tsx`, `debug-quiz.tsx`, `debug-symptom-form.tsx`), `scripts/dev-session.mjs` (dev-only cookie minter).
 
 Auth boundary: browser keeps the Firebase client session (for realtime Firestore reads);
@@ -156,7 +177,7 @@ Route handlers and server actions call `getCurrentUser()`; pages of the `(app)` 
 `requireUser()`.
 
 Client/server boundary: server components by default; `"use client"` only for the sign-in
-button, account menu, connect form, pipeline runner and quiz.
+button, account menu, connect form, pipeline runner, overview tracker and quizzes.
 
 ## Data Model
 
@@ -165,7 +186,8 @@ As built through Phase 4 (all timestamps are epoch **milliseconds**, not Firesto
 - `users/{uid}` — `{ email, displayName, photoURL|null, totalXp: 0, badges: [], createdAt }`.
   Written inside a transaction: created once on first sign-in, afterwards only
   `email`/`displayName`/`photoURL` refresh, so XP and badges can never be reset by a login.
-  `totalXp` is incremented only inside `completeLesson`'s transaction.
+  `totalXp` and `badges` are incremented/unioned only inside the lesson, debug and overview
+  section transactions.
 - `projects/{pid}` — `{ ownerUid, repoUrl, owner, repo, title, stage, stageError: string|null,
   stack: Stack|null, createdAt, updatedAt, lessonCount }`. Created by `createProject` inside a
   transaction that re-counts the owner's projects (cap 3). Stage values: `created`,
@@ -175,9 +197,13 @@ As built through Phase 4 (all timestamps are epoch **milliseconds**, not Firesto
 - `projects/{pid}/snapshot/main` — `{ files: [{ path, size, content }], fetchedAt, totalChars,
   truncated: string[] }`. **Deviation:** the blueprint writes `projects/{pid}/snapshot`; Firestore
   needs a document id, so singleton docs use `main` (same for `guidebook/main`).
-- `projects/{pid}/events/{eid}` — `{ type, at, meta }`. `project_created`, `stage_completed`
-  (ingest, architecture, lessons1, lessons2), `analysis_ready`, `quiz_passed`,
-  `quiz_failed` and `pathway_completed` are written today.
+- `projects/{pid}/events/{eid}` — `{ type, at, meta }`, one of the eleven BLUEPRINT §13 types:
+  `project_created`, `stage_completed` (ingest, architecture, lessons1, lessons2),
+  `analysis_ready`, `overview_section_viewed`, `lesson_viewed`, `quiz_passed`, `quiz_failed`,
+  `pathway_completed` (foundations, architecture, debug), `debug_created`, `debug_completed`,
+  `return_visit`. View events use deterministic ids (`overview_section_{section}`,
+  `lesson_viewed_{lessonId}`, `return_visit`) so reloads and strict-mode remounts cannot
+  double-count; everything else uses an auto id.
 - `projects/{pid}/guidebook/main` — the architecture map, validated by `GuidebookDocSchema`:
   `{ summary: { whatItDoes, plainSummary, gekoIntro },
      architecture: { layers: [{ id, name, purpose, files[], plainExplanation }],
@@ -193,8 +219,11 @@ As built through Phase 4 (all timestamps are epoch **milliseconds**, not Firesto
   Ids are slugs, unique across both parts; `part 2` order continues after part 1.
 - `projects/{pid}/progress/{uid}` — `{ lessons: Record<lessonId, {passed, score, at}>,
   debug: Record<sid, {completed, at}>, badges: string[], xp: number,
-  pathwayBonusAwarded: boolean }`. **Deviation:** `pathwayBonusAwarded` is extra so the +50
-  completion bonus is paid exactly once across retakes.
+  pathwayBonusAwarded: boolean, overviewSections: string[] }`. **Deviations:**
+  `pathwayBonusAwarded` is extra so the +50 completion bonus is paid exactly once across
+  retakes; `overviewSections` is extra so each map section is recorded once and `map-reader`
+  can be awarded from stored state. `overviewSections` only ever contains the four known
+  section keys (`summary`, `layers`, `flow`, `concepts`).
 - `projects/{pid}/debugSessions/{sid}` — `{ id, projectId, symptom, status: 'pending'|'done'|'failed',
   error: string|null, likelyCauses: [{ cause, evidenceFiles[], confidence: 'high'|'medium'|'low' }],
   fixSteps: string[], whyItWorks: { concept, explanation }, quiz: [{ question, options[], correctIndex, why }],
@@ -431,10 +460,88 @@ Append-only. Newest last.
   Follows the design of `architecture.ts`/`architecture-runner.ts` and `lessons.ts`/`lessons-runner.ts`.
   Keeps `src/lib/pipeline/debug.ts` pure and unit-testable without pulling `server-only` into client or
   test bundles.
+- **2026-11-20 — Badge rules live in `src/lib/badges.ts` and never re-award.** The module owns
+  the three ids, display names, descriptions and the pure `shouldAwardBadge` check.
+  `foundation-builder` is awarded when every stored lesson is passed, `map-reader` when all four
+  overview sections are recorded, and `bug-whisperer` on the first completed debug session.
+  Every award is guarded by both `progress.badges` and `users/{uid}.badges`, so retakes, reloads
+  and a second project cannot duplicate it. Rejected: duplicating badge strings in each action
+  (three copies drift, and the shelf cannot validate ids).
+- **2026-11-20 — Map reading is tracked with an IntersectionObserver island + server action.**
+  The overview page stays a server component; `OverviewTracker` observes
+  `[data-overview-section]`, reports each section once at ≥30% visibility, and
+  `markOverviewSectionViewed` owns the progress write, `overview_section_viewed` event and
+  `map-reader` award in one transaction. Rejected: converting the whole overview to a client
+  page or making the native `<details>` layers a client accordion — both would ship model prose
+  through a client boundary for no reading benefit.
+- **2026-11-20 — Analytics stay in Firestore and view events use deterministic ids.**
+  `lesson_viewed_{lessonId}`, `overview_section_{section}` and `return_visit` are created with
+  `doc(id).create()` so repeated renders and React strict-mode remounts are idempotent; events
+  written during render use `after()` so they never block the response. `return_visit` is only
+  written when a stored `analysis_ready` event is at least 24h old. Rejected: a third-party
+  product-analytics SDK — BLUEPRINT §13 treats the event documents as the measurement source,
+  and keeping them in Firestore avoids a second identity/consent surface. (`@vercel/analytics`
+  and `@vercel/speed-insights` are present in `package.json` from concurrent user changes but
+  are not imported anywhere and are not used for these events.)
+- **2026-11-20 — Pathway navigation is a server component with an explicit `active` prop.**
+  `PathwayNav` renders the same `Map / Learn / Debug` links on the hub and every pathway page.
+  Rejected: `usePathname` in a client island — every page already knows which pathway it is,
+  and a server prop keeps the shell static and avoids hydration work.
+- **2026-11-20 — The side-by-side IDE / connection-graph redesign is Backlog, not M6.**
+  The user's notes ask for Foundations and Debug to become less wordy with an IDE split view
+  and visual graphs. That changes the lesson/debug page architecture and prompt shape, so M6
+  shipped only the requested quiz-marker fix (letters → dots) and the requested polish items.
+  Rejected: a partial reskin now — it would create two lesson layouts within one milestone's scope.
 
 ## Change Log
 
-Newest last.
+Newest first.
+
+- **2026-11-20 — Phase 6: Polish (badges, full §13 analytics, pipeline retry UX, states, rules).**
+  Files: `src/lib/{badges,analytics}.ts` (+ `badges.test.ts`), `src/lib/domain/event.ts`
+  (+ `event.test.ts`), `src/lib/domain/progress.ts`, `src/app/actions/{lessons,debug,progress}.ts`,
+  `src/app/(app)/projects/[id]/{page.tsx,loading.tsx,error.tsx,overview/page.tsx,
+  learn/page.tsx,learn/[lessonId]/page.tsx,debug/page.tsx,debug/[sid]/page.tsx}`,
+  `src/app/(app)/dashboard/page.tsx`,
+  `src/components/app/badge-shelf.tsx`, `src/components/projects/{pathway-nav.tsx,
+  overview-tracker.tsx,pipeline-runner.tsx,quiz.tsx,debug-quiz.tsx}`, `PROJECT_CONTEXT.md`.
+  Why: closes M6 — the three prototype badges, every analytics event BLUEPRINT §13 names, a
+  retry UI that tells the truth about saved stages, explicit loading/error/empty states, and a
+  deployed rules file.
+  What:
+  - `src/lib/badges.ts` is the single badge catalogue + pure award/idempotency rules.
+    `BadgeShelf` (dashboard + project hub) shows earned badges in amber and locked ones quietly.
+    `completeLesson` awards `foundation-builder` in the same transaction as XP;
+    `markOverviewSectionViewed` awards `map-reader`; `completeDebugSession` keeps
+    `bug-whisperer`. All awards also land on `users/{uid}.badges`.
+  - `progress.overviewSections` records map reading. `OverviewTracker` observes the four
+    `[data-overview-section]` regions, reports each once, and the server action writes
+    `overview_section_viewed` + progress + badge in one transaction. Awarding the badge also
+    records `pathway_completed` for the architecture pathway.
+  - Remaining §13 events: `lesson_viewed` (deterministic id, `after()` on the lesson page),
+    `return_visit` (once, only ≥24h after the stored `analysis_ready`), and
+    `pathway_completed` for the debug pathway. `analysis_ready`, `stage_completed`,
+    `project_created`, `quiz_passed|quiz_failed`, `debug_created|debug_completed` were already
+    recorded and now share the typed event module.
+  - `PathwayNav` (`Map / Learn / Debug`) is on the hub and every pathway page.
+  - `PipelineRunner`: saved/next/waiting/failed per step, saved-step progress bar, elapsed
+    seconds while running, explicit 401 → login redirect, connection-loss copy, and an error
+    panel that names the failed step and says earlier steps are reused. The stale “future
+    step” row is gone.
+  - `/projects/[id]` gained `loading.tsx` and an `error.tsx` segment boundary. Debug explains
+    that it unlocks after the map; the empty map/lesson states remain. `DebugQuiz` options now
+    use the same dot markers as `Quiz` (no A/B/C letters) and expose `aria-pressed`.
+  - `firebase deploy --only firestore:rules` released the existing owner-scoped rules to
+    `gekonstruct-14174` (“already up to date”, compiled successfully).
+  Verify: `npx tsc --noEmit`, `npm run lint`, `npm test` (86/86) and `next build` green.
+  Manual journey: open a `ready` project → badge shelf shows locked badges → read all four map
+  sections (dots fill, Map Reader toast once) → pass every lesson (Foundation Builder toast,
+  total 3 badges) → open a debug session and pass its quiz (Bug Whisperer already held) →
+  reload `/learn/<lesson>` and check `projects/{pid}/events` has exactly one
+  `lesson_viewed_<lessonId>` → open the hub 24h after `analysis_ready` to see one
+  `return_visit`. Force a pipeline failure and confirm the error names the step, saved steps
+  stay, and retry resumes there. Throttle/expire the session mid-run and confirm the 401 path
+  sends you to `/login?next=...`.
 
 - **2026-11-19 — Phase 5: Debug & Learn pathway (symptom run, session walkthrough, evidence code blocks, quiz, XP, badge).**
   Files: `src/lib/domain/debug.ts`, `src/lib/debug.ts`, `src/lib/prompts.ts`, `src/lib/pipeline/{debug.ts,debug-runner.ts,debug.test.ts}`,
@@ -542,8 +649,18 @@ Older entries, one line each (full detail in git history):
 - **Lesson latency shares the 60s stage cap.** Live runs were 39s (part 1) and 20s (part 2) on a
   131,674-char snapshot; a repair retry on a near-cap repo could exceed `maxDuration = 60` in
   production, same risk as the architecture stage.
-- **`lesson_viewed` is not recorded.** The quiz events and `pathway_completed` are written, but
-  the view event listed in BLUEPRINT §13 waits for M6 instrumentation.
+- **FIXED 2026-11-20 — Badge and view analytics were missing.** `map-reader`,
+  `foundation-builder`, `overview_section_viewed`, `lesson_viewed` and `return_visit` are now
+  recorded (see Change Log 2026-11-20).
+- **`map-reader` uses viewport visibility as a reading proxy.** A section counts as read when
+  at least 30% of it has been on screen. On a very tall monitor all four sections can qualify
+  while scrolling quickly; on a short phone a long section still qualifies once 30% is visible.
+  This is deliberately cheap and needs no click tracking; revisit if testers game it or feel it
+  awards too early.
+- **`foundation-builder` is not backfilled for pre-M6 passes.** A pathway finished before the
+  badge shipped has no stored award; retaking any lesson in it awards the badge because
+  `completeLesson` recomputes the full pass count. `map-reader` needs no backfill because
+  pre-M6 progress has no `overviewSections`.
 - **Architecture latency sits close to the 60s stage cap on large snapshots.** A first pass
   on a 131,674-char snapshot took ~20s; the repair pass pushed the stage to ~41s. Repos near
   the 150k ingest cap can exceed `maxDuration = 60` in production. Thinking mode is already
@@ -558,12 +675,12 @@ Older entries, one line each (full detail in git history):
   instructions aimed at the model. The stage only reads and explains files (no tools, no
   writes) and the output is zod-checked, but a crafted repo can still skew the prose. Treat a
   connected repo as untrusted text when reviewing output quality.
-- **The overview fires no analytics yet.** `overview_section_viewed` and the `map-reader`
-  badge land with M6 instrumentation (BLUEPRINT §13).
+- **FIXED 2026-11-20 — The overview previously fired no analytics and had no badge.** Sections
+  now report `overview_section_viewed` and the fourth awards `map-reader` (BLUEPRINT §13).
 - **Mermaid is shown as source, not rendered.** The stored flowchart opens in a collapsed
   `<pre>`; diagram rendering is Backlog polish.
-- **There is no project hub nav yet.** The map and the Foundations pathway are linked from
-  the project page and from each other; a shared `Map / Learn / Debug` hub lands with M6.
+- **FIXED 2026-11-20 — There was no project hub nav.** `Map / Learn / Debug` now appears on the
+  hub and every pathway page, with the current pathway marked `aria-current="page"`.
 
 - **Google popup sign-in not yet verified in an automated browser** (needs an interactive
   Google account). The token→cookie→session path is verified with a minted session cookie;
@@ -610,13 +727,21 @@ Older entries, one line each (full detail in git history):
   not listed” hint in the snapshot panel.
 - **Render the stored mermaid flowchart** (dynamic import, silent fallback) once the map
   content has been through tester validation.
-- **Project hub navigation** (`Map / Learn / Debug`) and the `map-reader` badge event, both
-  scheduled with M6.
 - **Revisit quiz pass arithmetic** once tester feedback exists: with 2–3 questions a 70% pass
   means 2 of 2 or 3 of 3, so a single miss fails a lesson. Either ask for 4 questions or treat
   2 of 3 as a pass.
-- **`lesson_viewed` instrumentation** alongside the other M6 events.
+- **Foundations and Debug need a visual, less wordy layout.** Requested direction: side-by-side
+  IDE pane plus connection/dependency graphs and other visuals, instead of long prose. Needs a
+  page-architecture and prompt-shape change (code refs, graph data, narrow-viewport fallback),
+  so it was deliberately deferred out of M6.
+- **Separate pages for the project list and the profile.** Today the dashboard mixes project
+  cards, account state and badges; split `/projects` and `/profile` once navigation grows.
 - **Reduce architecture prompt cost/latency** if testers connect very large repos: per-file
   budget for prose-heavy files, or split the call into "layers" and "concepts".
 - **Cache the built prompt** (or the raw model answer) per snapshot so a failed repair does
   not pay for the full input twice.
+
+TODO:
+- DONE 2026-11-20 — the debug quiz now uses dots, not letters, matching Foundations.
+- Foundations & Debug are too wordy - use side-by-side IDE for both Debug and Foundations; use connection graphs, visuals! (Backlog)
+- separate page for projects and profile (Backlog)

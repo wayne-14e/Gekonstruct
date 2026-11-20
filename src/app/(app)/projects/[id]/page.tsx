@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,12 +14,16 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { GekoAvatar } from "@/components/brand/geko-avatar";
+import { BadgeShelf } from "@/components/app/badge-shelf";
 import { XpBadge } from "@/components/app/xp-badge";
+import { PathwayNav } from "@/components/projects/pathway-nav";
 import { PipelineRunner } from "@/components/projects/pipeline-runner";
 import { StageBadge } from "@/components/projects/stage-badge";
 import { Button } from "@/components/ui/button";
+import { recordReturnVisit } from "@/lib/analytics";
 import { getUserProfile } from "@/lib/auth/users";
 import { requireUser } from "@/lib/auth/session";
+import { BADGE_COUNT, earnedBadgeCount, uniqueBadgeList } from "@/lib/badges";
 import { listDebugSessions } from "@/lib/debug";
 import type { GuidebookDoc } from "@/lib/domain/architecture";
 import type { DebugSessionDoc } from "@/lib/domain/debug";
@@ -53,6 +58,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   if (!project) notFound();
 
+  after(() => recordReturnVisit(project.id).catch(() => undefined));
+
   const [snapshot, guidebook, lessons, progress, debugSessions] = await Promise.all([
     getSnapshot(project.id),
     getGuidebook(project.id),
@@ -62,6 +69,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   ]);
 
   const safeProgress: ProgressDoc = progress ?? emptyProgressDoc();
+  const badges = uniqueBadgeList([...(profile?.badges ?? []), ...safeProgress.badges]);
   const passedCount = countPassedLessons(safeProgress, lessons);
   // A project that has moved past a stage but is missing that stage's output is broken
   // state, so send the runner back to the earliest missing step instead of showing an
@@ -119,7 +127,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         </ul>
       ) : null}
 
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1.35fr_0.65fr] lg:items-start">
+      <PathwayNav projectId={project.id} active={null} className="mt-6" />
+
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.35fr_0.65fr] lg:items-start">
         <div>
           {runnerNeeded ? (
             <PipelineRunner
@@ -166,6 +176,16 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
               </dl>
             </section>
           ) : null}
+
+          <section className="rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="label-mono">Badges</p>
+              <span className="font-mono text-[0.6875rem] text-muted-foreground tabular-nums">
+                {earnedBadgeCount(badges)}/{BADGE_COUNT}
+              </span>
+            </div>
+            <BadgeShelf badges={badges} compact className="mt-3" />
+          </section>
 
           <section className="rounded-2xl border border-border bg-card p-5">
             <div className="flex items-center gap-2">

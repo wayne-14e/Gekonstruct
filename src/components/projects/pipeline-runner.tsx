@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, Loader2, Play, RotateCcw, Route } from "lucide-react";
@@ -53,13 +53,6 @@ const STEPS: Array<{
   },
 ];
 
-const FUTURE_STEPS = [
-  {
-    label: "Open the debug guide",
-    detail: "Symptom-led explanations · Unlocked once ready",
-  },
-] as const;
-
 /**
  * Client orchestrator for the pipeline (BLUEPRINT §4). It POSTs stages in order and
  * refreshes the server component after each one, so progress always comes from Firestore
@@ -96,6 +89,16 @@ export function PipelineRunner({
             : null,
   );
   const [error, setError] = useState<string | null>(stageError);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!running) return;
+    const startedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1_000));
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [running]);
 
   const ingestDone = hasSnapshot && stage !== "failed:ingested";
   const mappedDone =
@@ -106,6 +109,8 @@ export function PipelineRunner({
     stage !== "failed:architecture";
   const lessons1Done = mappedDone && lessonCount > 0 && stage !== "failed:lessons1";
   const lessons2Done = lessons1Done && stage === "ready";
+  const completedCount = [ingestDone, mappedDone, lessons1Done, lessons2Done].filter(Boolean).length;
+  const failedStepLabel = STEPS.find((step) => step.key === failedStep)?.label ?? null;
 
   const startIndex = !ingestDone ? 0 : !mappedDone ? 1 : !lessons1Done ? 2 : !lessons2Done ? 3 : 4;
   const startStep = STEPS[startIndex];
@@ -116,6 +121,7 @@ export function PipelineRunner({
     setRunning(true);
     setError(null);
     setFailedStep(null);
+    setElapsed(0);
 
     try {
       for (let index = startIndex; index < STEPS.length; index += 1) {
@@ -130,6 +136,15 @@ export function PipelineRunner({
           body: JSON.stringify({ projectId }),
         });
         const payload: unknown = await response.json().catch(() => null);
+
+        if (response.status === 401) {
+          const message = "Your session expired. Sign in again to continue this pipeline.";
+          setError(message);
+          setFailedStep(step.key);
+          toast.error(message);
+          router.push(`/login?next=${encodeURIComponent(`/projects/${projectId}`)}`);
+          return;
+        }
 
         if (!response.ok || !isSuccess(payload)) {
           const message = readError(payload) ?? `${step.label} failed (HTTP ${response.status}).`;
@@ -163,7 +178,11 @@ export function PipelineRunner({
     return lessons2Done ? "done" : "pending";
   }
 
-  const label = running ? "running" : failedStep ? "stopped" : "ready to read";
+  const label = running
+    ? `running · ${elapsed}s`
+    : failedStep
+      ? "stopped"
+      : "ready to read";
   const heading =
     startIndex <= 1
       ? startIndex === 0
@@ -210,6 +229,20 @@ export function PipelineRunner({
         </span>
       </div>
 
+      <div
+        className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-secondary"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={STEPS.length}
+        aria-valuenow={completedCount}
+        aria-label={`${completedCount} of ${STEPS.length} pipeline steps saved`}
+      >
+        <div
+          className="h-full rounded-full bg-primary transition-[width] duration-300"
+          style={{ width: `${(completedCount / STEPS.length) * 100}%` }}
+        />
+      </div>
+
       {mappedDone ? (
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-[#0e141b] px-4 py-3">
           <Route className="size-4 shrink-0 text-primary" aria-hidden="true" />
@@ -222,32 +255,45 @@ export function PipelineRunner({
         </div>
       ) : null}
 
-      <ol className="mt-5 space-y-3">
+      <ol className="mt-5 space-y-3" aria-live="polite">
         {STEPS.map((step, index) => {
           const state = stateFor(step.key);
           const dimmed = index > startIndex && !running && !failedStep;
+          const status =
+            state === "done"
+              ? "saved"
+              : state === "active"
+                ? "running"
+                : state === "failed"
+                  ? "failed"
+                  : index === startIndex
+                    ? "next"
+                    : "waiting";
           return (
-            <li key={step.key} className={cn("flex gap-3", dimmed && "opacity-60")}>
+            <li key={step.key} className={cn("flex items-start gap-3", dimmed && "opacity-60")}>
               <StepIcon state={state} />
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground">{step.label}</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                  {step.detail}
-                </p>
+              <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{step.label}</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                    {step.detail}
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "mt-0.5 shrink-0 font-mono text-[0.625rem] tracking-[0.08em] uppercase",
+                    state === "done" && "text-[#8ce85f]",
+                    state === "active" && "text-primary",
+                    state === "failed" && "text-destructive",
+                    state === "pending" && "text-muted-foreground",
+                  )}
+                >
+                  {status}
+                </span>
               </div>
             </li>
           );
         })}
-
-        {FUTURE_STEPS.map((step) => (
-          <li key={step.label} className="flex gap-3 opacity-55">
-            <StepIcon state="pending" />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-foreground">{step.label}</p>
-              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{step.detail}</p>
-            </div>
-          </li>
-        ))}
       </ol>
 
       {error ? (
@@ -256,7 +302,19 @@ export function PipelineRunner({
           className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
         >
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <p className="leading-relaxed">{error}</p>
+          <div className="min-w-0">
+            <p className="font-semibold">
+              {failedStepLabel ? `${failedStepLabel} stopped` : "The pipeline stopped"}
+            </p>
+            <p className="mt-0.5 leading-relaxed">{error}</p>
+            {completedCount > 0 ? (
+              <p className="mt-1 text-xs leading-relaxed text-[#ffb0a8]">
+                {completedCount} earlier {completedCount === 1 ? "step is" : "steps are"} saved.
+                Retrying continues from &ldquo;{failedStepLabel ?? startStep?.label}&rdquo; and
+                reuses them.
+              </p>
+            ) : null}
+          </div>
         </div>
       ) : null}
 

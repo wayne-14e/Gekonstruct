@@ -14,10 +14,14 @@ import { GekoAvatar } from "@/components/brand/geko-avatar";
 import { SpeechBubble } from "@/components/brand/speech-bubble";
 import { XpBadge } from "@/components/app/xp-badge";
 import { FileChipList, InlineText } from "@/components/projects/guidebook-parts";
+import { OverviewTracker } from "@/components/projects/overview-tracker";
+import { PathwayNav } from "@/components/projects/pathway-nav";
 import { StageBadge } from "@/components/projects/stage-badge";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
 import { getUserProfile } from "@/lib/auth/users";
+import { emptyProgressDoc } from "@/lib/domain/progress";
+import { getProgress } from "@/lib/lessons";
 import { getGuidebook, getProject, type ProjectRecord } from "@/lib/projects";
 
 export const metadata: Metadata = {
@@ -34,9 +38,14 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
 
   if (!project) notFound();
 
-  const guidebook = await getGuidebook(project.id);
+  const [guidebook, progress] = await Promise.all([
+    getGuidebook(project.id),
+    getProgress(project.id, user.uid),
+  ]);
   if (!guidebook) return <MapMissing project={project} />;
 
+  const safeProgress = progress ?? emptyProgressDoc();
+  const badgeEarned = safeProgress.badges.includes("map-reader");
   const { summary, architecture, concepts } = guidebook;
   const lessonsReady =
     project.stage === "lessons1" || project.stage === "lessons2" || project.stage === "ready";
@@ -68,11 +77,23 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
         <XpBadge totalXp={profile?.totalXp ?? 0} />
       </div>
 
+      <PathwayNav projectId={project.id} active="map" className="mt-6" />
+
+      <OverviewTracker
+        projectId={project.id}
+        initialViewed={safeProgress.overviewSections}
+        initialBadgeEarned={badgeEarned}
+      />
+
       <SpeechBubble mood="encouraging" className="mt-6" label="Geko">
         <InlineText text={summary.gekoIntro} />
       </SpeechBubble>
 
-      <section aria-labelledby="summary-heading" className="mt-8">
+      <section
+        aria-labelledby="summary-heading"
+        data-overview-section="summary"
+        className="mt-8"
+      >
         <div className="flex items-center gap-2">
           <Sparkles className="size-4 text-primary" aria-hidden="true" />
           <h2 id="summary-heading" className="text-xl">
@@ -90,7 +111,11 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
         </div>
       </section>
 
-      <section aria-labelledby="layers-heading" className="mt-10">
+      <section
+        aria-labelledby="layers-heading"
+        data-overview-section="layers"
+        className="mt-10"
+      >
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div className="flex items-center gap-2">
             <Layers className="size-4 text-primary" aria-hidden="true" />
@@ -145,7 +170,11 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
         </div>
       </section>
 
-      <section aria-labelledby="flow-heading" className="mt-10">
+      <section
+        aria-labelledby="flow-heading"
+        data-overview-section="flow"
+        className="mt-10"
+      >
         <div className="flex items-center gap-2">
           <Route className="size-4 text-primary" aria-hidden="true" />
           <h2 id="flow-heading" className="text-xl">
@@ -187,7 +216,11 @@ export default async function OverviewPage({ params }: { params: Promise<{ id: s
         </ol>
       </section>
 
-      <section aria-labelledby="concepts-heading" className="mt-10">
+      <section
+        aria-labelledby="concepts-heading"
+        data-overview-section="concepts"
+        className="mt-10"
+      >
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div className="flex items-center gap-2">
             <Lightbulb className="size-4 text-primary" aria-hidden="true" />

@@ -13,6 +13,7 @@ import {
 import { GekoAvatar } from "@/components/brand/geko-avatar";
 import { SpeechBubble } from "@/components/brand/speech-bubble";
 import { XpBadge } from "@/components/app/xp-badge";
+import { PathwayNav } from "@/components/projects/pathway-nav";
 import { StageBadge } from "@/components/projects/stage-badge";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
@@ -74,6 +75,8 @@ export default async function LearnPage({ params }: { params: Promise<{ id: stri
         </div>
         <XpBadge totalXp={profile?.totalXp ?? 0} />
       </div>
+
+      <PathwayNav projectId={project.id} active="learn" className="mt-6" />
 
       {lessons.length === 0 ? (
         <LessonsMissing projectId={project.id} stage={project.stage} stageError={project.stageError} />

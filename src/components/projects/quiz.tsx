@@ -79,6 +79,11 @@ export function Quiz({
         if (payload.pathwayComplete && payload.bonusXp > 0) {
           toast.success(`Pathway complete: +${payload.bonusXp} bonus XP`);
         }
+        if (payload.badgeAwarded) {
+          toast.success("Badge unlocked: Foundation Builder", {
+            description: "You passed every lesson in this pathway.",
+          });
+        }
       } else {
         toast.error("Not a pass yet — read the notes and try again.");
       }

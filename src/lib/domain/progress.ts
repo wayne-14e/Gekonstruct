@@ -3,8 +3,10 @@ import { z } from "zod";
 /**
  * `projects/{pid}/progress/{uid}` (BLUEPRINT §7). Timestamps are epoch millis.
  *
- * `pathwayBonusAwarded` is an extra field beyond the blueprint record: without it the
- * completion bonus cannot be awarded exactly once when a learner retakes a passed quiz.
+ * Two fields are extras beyond the blueprint record:
+ * - `pathwayBonusAwarded` pays the completion bonus exactly once across retakes.
+ * - `overviewSections` records which architecture-map sections were read so the
+ *   `map-reader` badge and `overview_section_viewed` events are idempotent.
  */
 export const LessonProgressSchema = z.object({
   passed: z.boolean(),
@@ -25,6 +27,7 @@ export const ProgressDocSchema = z.object({
   badges: z.array(z.string()).default([]),
   xp: z.number().int().nonnegative().default(0),
   pathwayBonusAwarded: z.boolean().default(false),
+  overviewSections: z.array(z.string()).default([]),
 });
 
 export type ProgressDoc = z.infer<typeof ProgressDocSchema>;
@@ -36,6 +39,7 @@ export function emptyProgressDoc(): ProgressDoc {
     badges: [],
     xp: 0,
     pathwayBonusAwarded: false,
+    overviewSections: [],
   };
 }
 

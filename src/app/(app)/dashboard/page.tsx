@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, FolderGit2, ShieldCheck, Sparkles } from "lucide-react";
 import { GekoAvatar } from "@/components/brand/geko-avatar";
+import { BadgeShelf } from "@/components/app/badge-shelf";
 import { XpBadge } from "@/components/app/xp-badge";
 import { ConnectRepoForm } from "@/components/projects/connect-repo-form";
 import { StageBadge } from "@/components/projects/stage-badge";
@@ -89,6 +90,15 @@ export default async function DashboardPage() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section aria-labelledby="badges-heading" className="mt-10">
+        <h2 id="badges-heading" className="sr-only">
+          Badges
+        </h2>
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-6">
+          <BadgeShelf badges={profile?.badges ?? []} />
+        </div>
       </section>
     </div>
   );

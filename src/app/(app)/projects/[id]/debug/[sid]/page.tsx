@@ -17,6 +17,7 @@ import { SpeechBubble } from "@/components/brand/speech-bubble";
 import { XpBadge } from "@/components/app/xp-badge";
 import { CodeBlock } from "@/components/projects/code-block";
 import { DebugQuiz } from "@/components/projects/debug-quiz";
+import { PathwayNav } from "@/components/projects/pathway-nav";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
 import { getUserProfile } from "@/lib/auth/users";
@@ -86,6 +87,8 @@ export default async function DebugSessionPage({
         </div>
         <XpBadge totalXp={profile?.totalXp ?? 0} />
       </div>
+
+      <PathwayNav projectId={project.id} active="debug" className="mt-6" />
 
       {/* Reported Symptom Card */}
       <section className="mt-6 rounded-2xl border border-border bg-card p-5">

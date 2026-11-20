@@ -5,6 +5,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/session";
 import { userDocRef } from "@/lib/auth/users";
+import { addBadge, shouldAwardBadge } from "@/lib/badges";
 import { emptyProgressDoc, ProgressDocSchema } from "@/lib/domain/progress";
 import { adminDb } from "@/lib/firebase/admin";
 import { getLesson, getLessons, progressDocRef } from "@/lib/lessons";
@@ -37,6 +38,7 @@ export type CompleteLessonResult =
       bonusXp: number;
       totalXp: number;
       pathwayComplete: boolean;
+      badgeAwarded: boolean;
       gekoLine: string;
     }
   | { ok: false; error: string };
@@ -116,16 +118,38 @@ export async function completeLesson(input: unknown): Promise<CompleteLessonResu
         ? Number(userSnap.get("totalXp") ?? 0)
         : 0;
 
+      const existingUserBadges: string[] = userSnap.exists
+        ? ((userSnap.get("badges") as string[] | undefined) ?? [])
+        : [];
+      const badgeAwarded = shouldAwardBadge({
+        owned: [...progress.badges, ...existingUserBadges],
+        badge: "foundation-builder",
+        condition: pathwayComplete,
+      });
+      const nextBadges = badgeAwarded
+        ? addBadge(progress.badges, "foundation-builder")
+        : progress.badges;
+
       tx.set(progressRef, {
         lessons: nextLessons,
         debug: progress.debug,
-        badges: progress.badges,
+        badges: nextBadges,
         xp: progress.xp + xpAwarded,
         pathwayBonusAwarded: progress.pathwayBonusAwarded || bonusXp > 0,
+        overviewSections: progress.overviewSections,
       });
+
+      const userUpdate: Record<string, unknown> = {};
       if (xpAwarded > 0) {
-        tx.set(userRef, { totalXp: FieldValue.increment(xpAwarded) }, { merge: true });
+        userUpdate.totalXp = FieldValue.increment(xpAwarded);
       }
+      if (badgeAwarded) {
+        userUpdate.badges = FieldValue.arrayUnion("foundation-builder");
+      }
+      if (Object.keys(userUpdate).length > 0) {
+        tx.set(userRef, userUpdate, { merge: true });
+      }
+
       tx.set(eventRef, {
         type: grade.passed ? "quiz_passed" : "quiz_failed",
         at: now,
@@ -137,6 +161,7 @@ export async function completeLesson(input: unknown): Promise<CompleteLessonResu
           xpAwarded,
           bonusXp,
           pathwayComplete,
+          badgeAwarded,
         },
       });
       if (bonusXp > 0) {
@@ -153,6 +178,7 @@ export async function completeLesson(input: unknown): Promise<CompleteLessonResu
 
       return {
         alreadyPassed,
+        badgeAwarded,
         bonusXp,
         pathwayComplete,
         totalXp: currentTotalXp + xpAwarded,
@@ -179,6 +205,7 @@ export async function completeLesson(input: unknown): Promise<CompleteLessonResu
       bonusXp: outcome.bonusXp,
       totalXp: outcome.totalXp,
       pathwayComplete: outcome.pathwayComplete,
+      badgeAwarded: outcome.badgeAwarded,
       gekoLine: outcome.alreadyPassed
         ? "You already passed this lesson. A retry can't take the XP away — this one is yours."
         : gekoLineForScore(grade.score),

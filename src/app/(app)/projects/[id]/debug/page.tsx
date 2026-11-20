@@ -14,6 +14,7 @@ import {
 import { SpeechBubble } from "@/components/brand/speech-bubble";
 import { XpBadge } from "@/components/app/xp-badge";
 import { DebugSymptomForm } from "@/components/projects/debug-symptom-form";
+import { PathwayNav } from "@/components/projects/pathway-nav";
 import { StageBadge } from "@/components/projects/stage-badge";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
@@ -21,7 +22,7 @@ import { getUserProfile } from "@/lib/auth/users";
 import { listDebugSessions } from "@/lib/debug";
 import { emptyProgressDoc, type ProgressDoc } from "@/lib/domain/progress";
 import { getProgress } from "@/lib/lessons";
-import { getProject } from "@/lib/projects";
+import { getGuidebook, getProject, getSnapshot } from "@/lib/projects";
 
 export const metadata: Metadata = {
   title: "Debug & Learn",
@@ -37,15 +38,18 @@ export default async function DebugPage({ params }: { params: Promise<{ id: stri
 
   if (!project) notFound();
 
-  const [sessions, progress] = await Promise.all([
+  const [sessions, progress, guidebook, snapshot] = await Promise.all([
     listDebugSessions(project.id),
     getProgress(project.id, user.uid),
+    getGuidebook(project.id),
+    getSnapshot(project.id),
   ]);
 
   const safeProgress: ProgressDoc = progress ?? emptyProgressDoc();
   const completedSessionCount = Object.values(safeProgress.debug).filter(
     (entry) => entry.completed,
   ).length;
+  const debugReady = guidebook !== null && snapshot !== null;
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 sm:py-12">
@@ -77,6 +81,8 @@ export default async function DebugPage({ params }: { params: Promise<{ id: stri
         <XpBadge totalXp={profile?.totalXp ?? 0} />
       </div>
 
+      <PathwayNav projectId={project.id} active="debug" className="mt-6" />
+
       <div className="mt-6">
         <SpeechBubble mood="calm">
           <p>
@@ -87,9 +93,29 @@ export default async function DebugPage({ params }: { params: Promise<{ id: stri
         </SpeechBubble>
       </div>
 
-      <div className="mt-8">
-        <DebugSymptomForm projectId={project.id} />
-      </div>
+      {debugReady ? (
+        <div className="mt-8">
+          <DebugSymptomForm projectId={project.id} />
+        </div>
+      ) : (
+        <section className="mt-8 rounded-2xl border border-border bg-card p-6">
+          <p className="label-mono">Locked</p>
+          <h2 className="mt-2 text-lg font-semibold text-foreground">
+            Debug unlocks after the map
+          </h2>
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            The debug pathway matches your symptom against the stored snapshot and the
+            architecture summary. Finish ingestion and the architecture map first, then come
+            back with what is breaking.
+          </p>
+          <Button asChild className="mt-4" size="sm">
+            <Link href={`/projects/${project.id}`}>
+              Open the project
+              <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
+        </section>
+      )}
 
       <section aria-labelledby="sessions-heading" className="mt-12">
         <div className="flex items-center justify-between gap-3">

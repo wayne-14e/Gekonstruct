@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,9 +15,11 @@ import { XpBadge } from "@/components/app/xp-badge";
 import { CodeBlock } from "@/components/projects/code-block";
 import { FileChip } from "@/components/projects/guidebook-parts";
 import { LessonMarkdown } from "@/components/projects/lesson-markdown";
+import { PathwayNav } from "@/components/projects/pathway-nav";
 import { Quiz } from "@/components/projects/quiz";
 import { StageBadge } from "@/components/projects/stage-badge";
 import { Button } from "@/components/ui/button";
+import { recordLessonViewed } from "@/lib/analytics";
 import { requireUser } from "@/lib/auth/session";
 import { getUserProfile } from "@/lib/auth/users";
 import { emptyProgressDoc } from "@/lib/domain/progress";
@@ -47,6 +50,10 @@ export default async function LessonPage({
   ]);
 
   if (!lesson) notFound();
+
+  after(() =>
+    recordLessonViewed(project.id, lesson.id, lesson.order).catch(() => undefined),
+  );
 
   const safeProgress = progress ?? emptyProgressDoc();
   const passed = safeProgress.lessons[lesson.id]?.passed === true;
@@ -90,6 +97,8 @@ export default async function LessonPage({
         </div>
         <XpBadge totalXp={profile?.totalXp ?? 0} />
       </div>
+
+      <PathwayNav projectId={project.id} active="learn" className="mt-6" />
 
       <section
         aria-labelledby="goal-heading"

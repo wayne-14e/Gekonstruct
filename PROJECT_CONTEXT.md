@@ -84,7 +84,9 @@ shows per-step saved/next/failed states, a progress bar, elapsed seconds and a c
 session-expired redirect, keeping completed stages on a retry. `/projects/[id]` ships a loading
 skeleton and a segment error boundary; debug explains that it unlocks after the map exists; the
 debug quiz uses the same dot markers as Foundations. Firestore rules were deployed to
-`gekonstruct-14174`.
+`gekonstruct-14174`. Vercel Analytics and Speed Insights are mounted in the root layout for
+page-level traffic/Core Web Vitals telemetry; product analytics remain the Firestore event
+documents described below.
 
 Design system live (redesigned 2026-11-13): dark IDE surface (`#0b0f14`), Space Grotesk
 for all UI + display with JetBrains Mono for labels, file paths and code (no serif/italic
@@ -125,6 +127,7 @@ on `wayne-14e/Verdict` (6 layers, 7 flow steps, 11 concepts, ~41s); 2026-11-13: 
 [Browser]
   Google sign-in (firebase client SDK) → ID token
   POST server action signIn(idToken) → httpOnly session cookie (admin SDK)
+  root layout mounts Vercel Analytics + Speed Insights (page-level telemetry only)
   createProject(repoUrl) server action → projects/{pid} (stage "created")
   POST /api/pipeline/ingest → snapshot + stack (stage "ingested")
   POST /api/pipeline/architecture → guidebook/main (stage "architecture")
@@ -492,10 +495,28 @@ Append-only. Newest last.
   and visual graphs. That changes the lesson/debug page architecture and prompt shape, so M6
   shipped only the requested quiz-marker fix (letters → dots) and the requested polish items.
   Rejected: a partial reskin now — it would create two lesson layouts within one milestone's scope.
+- **2026-11-20 — Vercel Analytics and Speed Insights are mounted in the root layout.**
+  `@vercel/analytics/next` and `@vercel/speed-insights/next` now render from `src/app/layout.tsx`
+  for page-level traffic and Core Web Vitals telemetry on Vercel. This supersedes the earlier
+  note that the two packages were unused. They are deliberately separate from BLUEPRINT §13
+  product events: Firestore `events/*` remains the source for lesson/map/debug milestones, while
+  Vercel covers page views and performance. No env vars or secrets are required; Vercel injects
+  the endpoints at deploy time. Rejected: sending product events through Vercel custom events —
+  they would no longer be queryable per project/owner from Firestore in M7.
 
 ## Change Log
 
 Newest first.
+
+- **2026-11-20 — Vercel Analytics + Speed Insights mounted.**
+  Files: `src/app/layout.tsx`, `PROJECT_CONTEXT.md`.
+  Why: the packages were already in `package.json` but nothing rendered them, so Vercel
+  collected no page-view or Core Web Vitals data.
+  What: root layout now renders `<Analytics />` from `@vercel/analytics/next` and
+  `<SpeedInsights />` from `@vercel/speed-insights/next` next to the existing `Toaster`. They
+  load only on Vercel deployments; product events stay in Firestore. No env vars needed.
+  Verify: deploy on Vercel → the project’s Analytics tab shows page views and the Speed
+  Insights tab shows Web Vitals after a few visits; local `next dev` is unaffected.
 
 - **2026-11-20 — Phase 6: Polish (badges, full §13 analytics, pipeline retry UX, states, rules).**
   Files: `src/lib/{badges,analytics}.ts` (+ `badges.test.ts`), `src/lib/domain/event.ts`
@@ -741,7 +762,48 @@ Older entries, one line each (full detail in git history):
 - **Cache the built prompt** (or the raw model answer) per snapshot so a failed repair does
   not pay for the full input twice.
 
-TODO:
-- DONE 2026-11-20 — the debug quiz now uses dots, not letters, matching Foundations.
-- Foundations & Debug are too wordy - use side-by-side IDE for both Debug and Foundations; use connection graphs, visuals! (Backlog)
-- separate page for projects and profile (Backlog)
+---
+
+**TODO:**
+
+### 1. Visual Maps: Libraries & APIs for Next.js
+
+| Concept | Best Next.js / JS Stack | How It Works | UI & Design Customization |
+| --- | --- | --- | --- |
+| **Clickable System & Dependency Map** *(replaces GitDiagram / repowise)* | **`@xyflow/react`** (React Flow) + **`madge`** or **`dependency-cruiser`** | Run `madge` or `dependency-cruiser` in a Next.js API route (or parse ASTs with `ts-morph` / `web-tree-sitter`) to extract a JSON graph of files and imports. Feed that JSON into React Flow. | **100% Customizable.** Every node and edge in React Flow is a standard React component—you can style them with Tailwind CSS, add XP badges, lock/unlock states, or custom icons. |
+| **3D Code City** *(replaces CodeCharta)* | **`three`** + **`@react-three/fiber`** (or `codecharta-visualization`) | While CodeCharta publishes `codecharta-visualization` on npm, building a lightweight 3D city in **React Three Fiber** using a treemap layout (`d3-hierarchy`) is much cleaner in Next.js. | **100% Customizable** in React Three Fiber (custom shaders, neon/dark palettes, camera fly-to animations per lesson). CodeCharta’s prebuilt UI is rigid to restyle. |
+| **Function Flowcharts** *(replaces CodeVisualizer)* | **`mermaid`** or **`@xyflow/react`** + **`web-tree-sitter`** | Parse a single function's `if/else` and loop branches via Tree-sitter in WASM, convert to Mermaid syntax or React Flow nodes, and render interactively. | **High.** Mermaid supports custom `themeVariables` (colors, fonts, borders), while React Flow gives complete JSX control over every decision block. |
+| **Git Evolution Replay** *(replaces Gource)* | **`d3-force`** + HTML5 `<canvas>` + **`isomorphic-git`** | Gource itself is a C++/OpenGL desktop binary with no web API. To recreate it in Next.js, use `isomorphic-git` to read commit history and animate a force-directed tree on `<canvas>`. | **100% Customizable.** Because you own the canvas draw loop, you control particle effects, avatar sprites, and color themes. |
+
+*(Note: **GitDiagram** is also open-source and exposes an MCP server at `[https://gitdiagram.com/mcp](https://gitdiagram.com/mcp)`, though generating diagrams via your own LLM prompt + **React Flow** gives you far better visual control and interactive click handlers than static Mermaid SVGs.)*
+
+---
+
+### 2. Gamified Mechanics: Libraries for Next.js
+
+* **Git Time-Travel ("Commit #1" Walkthroughs):**
+* **Library:** **`isomorphic-git`** (pure JS Git implementation that works in Node.js API routes and in-browser with `LightningFS`) or the **GitHub REST/GraphQL API** (`GET /repos/{owner}/{repo}/commits`).
+* **Design Control:** Complete—you fetch the commit snapshots and diffs as raw data, then render them in your own step-by-step lesson UI or diff viewer (like **`react-diff-viewer-continued`** or **`@monaco-editor/react`**).
+
+
+* **"Break & Fix" Sabotage Quests (In-Browser Sandbox):**
+* **Library:** **`@webcontainer/api`** (StackBlitz WebContainers) or **`@codesandbox/sandpack-react`**.
+* **How It Works:** Both boot a real Node.js/React runtime directly inside the user's browser tab. Your course engine can programmatically inject a "bug" into a file in the virtual filesystem, show the broken live preview, and verify when the learner fixes it.
+* **Design Control:** **Full.** You can hide the default Sandpack chrome and wire your own minimal editor + preview panes with custom Tailwind styling.
+
+
+* **Trace One Button Click End-to-End (Guided Code Tour):**
+* **Library:** **`@monaco-editor/react`** (VS Code's editor) + **`tree-sitter`**.
+* **How It Works:** Use Monaco's Decorations API (`deltaDecorations`) to highlight the exact line where a click handler starts, dim unrelated lines, and animate a "step forward" pulse to the next function call across files as the user clicks *Next Step*.
+* **Design Control:** **Full.** Monaco supports custom JSON themes, custom gutter icons, and floating React widgets anchored to specific lines of code.
+
+
+---
+
+### Recommended Architecture for Your Project
+
+If you want the highest visual polish with the least friction in Next.js:
+
+1. **Ingestion & Parsing:** Clone/fetch the repo via **`isomorphic-git`** or GitHub API → parse imports & ASTs with **`ts-morph`** (for JS/TS) or **`web-tree-sitter`** (multi-language).
+2. **World Map View:** Render the repo structure in **`@xyflow/react`** (React Flow) styled as an interactive skill tree or node map where each node unlocks a lesson module.
+3. **Interactive Quest View:** Embed **`@monaco-editor/react`** (for guided call-stack tracing) alongside **`@codesandbox/sandpack-react`** (for live "Break & Fix" coding challenges), all styled with your own CSS/Tailwind design system.

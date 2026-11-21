@@ -263,6 +263,28 @@
   animation: geko-pop 0.35s cubic-bezier(0.3, 1.4, 0.5, 1) both;
 }
 
+/* A single pulse travelling down the debug signal-trace rail. */
+@keyframes geko-trace {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@utility animate-trace {
+  animation: geko-trace 3.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
 .geko-guided-line {
   background: rgba(91, 224, 0, 0.10);
   border-left: 2px solid #5be000;

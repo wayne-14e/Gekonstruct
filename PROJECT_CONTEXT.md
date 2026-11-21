@@ -66,15 +66,17 @@ key). `completeLesson` re-grades on the server (≥70%), writes progress and
 `/projects/[id]/debug/[sid]`. `/api/debug/run` takes `{ projectId, symptom }`, creates a
 `pending` session document after an atomic per-project usage reservation, extracts keywords and matches the top-10 snapshot files using a
 deterministic overlap function (path segments weighted +20/+10, bounded content frequency
-counts), builds the `debug-v1` prompt over the matched code + guidebook summary, calls DeepSeek
+counts), builds the `debug-v3` prompt over the matched code + guidebook summary + the map's
+stored data flow, calls DeepSeek
 with repair retry, audits every evidence file and backticked path against the snapshot, and writes
 `projects/{pid}/debugSessions/{sid}` (`done`/`failed`) + `debug_created` event.
 Free-plan users can start at most two debug sessions per project; a reservation counts as used
 even when analysis later fails, since the model call may already incur cost.
 `/projects/[id]/debug` provides the symptom input form with quick suggestion chips and session
-history. `/projects/[id]/debug/[sid]` renders the reported symptom, likely causes with confidence
-badges and shiki `<CodeBlock>` evidence previews, concrete fix steps, a why-it-works concept
-panel, Geko tip bubble, and client `<DebugQuiz>`. `completeDebugSession` re-grades the quiz on
+history. `/projects/[id]/debug/[sid]` renders the reported symptom, the detective board, a
+signal trace of how the data moves between components until it breaks, likely causes with
+confidence badges and shiki `<CodeBlock>` evidence previews, concrete fix steps, a
+why-it-works concept panel, Geko tip bubble, and client `<DebugQuiz>`. `completeDebugSession` re-grades the quiz on
 the server (≥70%), writes progress `debug[sid] = { completed: true, at }`, awards 30 XP on first
 pass, grants the `"bug-whisperer"` badge on the first completed debug session (written to both
 `progress.badges` and `users/{uid}.badges`), and records `debug_completed` inside a single
@@ -106,11 +108,11 @@ short subtitle, two CTAs, limits line) above a full-width sample-pipeline window
 mac-style red/yellow/green dots, followed by the pathways, how-it-works and closing CTA.
 Signed-in visitors are redirected to `/dashboard`; signing out returns them to `/`.
 
-Last verified: 2026-11-20 — `npm run build`, `npx tsc --noEmit`, `npm run lint`, and
-`npm test` green (100/100). Architecture uses a four-section pager, React Flow skill map,
+Last verified: 2026-11-21 — `npm run build`, `npx tsc --noEmit`, `npm run lint`, and
+`npm test` green (111/111). Architecture uses a four-section pager, React Flow skill map,
 and a saved, step-by-step request walkthrough;
 Foundations include a progressive Monaco split workspace; Debug includes
-the detective board. The header includes Profile and the account popup labels Community as
+the detective board and the audited signal trace of how data moves between components. The header includes Profile and the account popup labels Community as
 Coming soon. Projects include icon-only cascade deletion with confirmation. Profile sharing renders a branded PNG and uses native file sharing
 where supported, with download/caption fallback; the two-session quota is enforced with Admin
 SDK transactions. Its usage subcollection is unmatched by client Firestore rules, so no rules
@@ -203,6 +205,7 @@ lessons,lessons-runner,lessons-route,debug,debug-runner}.ts`,
 `profile-actions.tsx`, `app-nav.tsx`, `project-progress-card.tsx`, `overview-tracker.tsx`,
 `request-flow.tsx`, `recent-activity-feed.tsx`, `guidebook-parts.tsx`, `code-block.tsx`,
 `lesson-markdown.tsx`, `quiz.tsx`, `debug-quiz.tsx`, `debug-symptom-form.tsx`,
+`debug-detective.tsx`, `debug-data-path.tsx`,
 `repo-roast.tsx`), `scripts/dev-session.mjs` (dev-only cookie minter).
 
 Auth boundary: browser keeps the Firebase client session (for realtime Firestore reads);
@@ -213,7 +216,7 @@ Route handlers and server actions call `getCurrentUser()`; pages of the `(app)` 
 Client/server boundary: server components by default; `"use client"` only for the sign-in
 button, account menu, route-aware app navigation, profile forms/confirmation dialog and
 progress sharing, Repo Roast UI/sharing, connect form, pipeline runner, overview tracker,
-request walkthrough and quizzes.
+request walkthrough, quizzes, the debug detective board and the debug signal trace.
 
 ## Data Model
 
@@ -274,10 +277,13 @@ As built through Phase 6 (all timestamps are epoch **milliseconds**, not Firesto
   `understoodRequestSteps` contains zero-based indexes into the guidebook's `architecture.dataFlow`.
 - `projects/{pid}/debugSessions/{sid}` — `{ id, projectId, symptom, status: 'pending'|'done'|'failed',
   error: string|null, likelyCauses: [{ cause, evidenceFiles[], confidence: 'high'|'medium'|'low' }],
-  fixSteps: string[], whyItWorks: { concept, explanation }, quiz: [{ question, options[], correctIndex, why }],
+  fixSteps: string[], dataPath: { entry, steps: [{ from, to, file, whatHappens }], breaksAt },
+  whyItWorks: { concept, explanation }, quiz: [{ question, options[], correctIndex, why }],
   gekoTip: string, xp: 30, createdAt, analyzedAt, model, promptVersion }`, validated by
   `DebugSessionDocSchema`. Created as `pending` on `/api/debug/run`, updated to `done` or `failed`.
-  `evidenceFiles` always contain real snapshot paths.
+  `evidenceFiles` and every `dataPath.steps[].file` always contain real snapshot paths.
+  `dataPath` is optional on the stored doc so sessions created before `debug-v3` still render;
+  new sessions always carry 3–6 audited hops across at least two distinct files.
 
 ## Env & Secrets
 
@@ -304,7 +310,7 @@ Prompts live in `src/lib/prompts.ts` only. Version constant + last change:
 |---|---|---|---|
 | `architecture-v2` | architecture | 2026-11-20 | Architecture map copy now prefers one idea per sentence and scannable UI-ready mission, clue, evidence and trace language while retaining the real-path and JSON constraints. |
 | `lessons-v2` | lessons1 / lessons2 | 2026-11-20 | Foundations copy now prefers short, scannable, mission-ready explanations and keeps the existing 250–500-word and real-codeRef constraints. |
-| `debug-v2` | debug | 2026-11-20 | Debug copy now prefers compact suspect, evidence, fix and concept language so it can become a detective quest instead of a prose report. |
+| `debug-v3` | debug | 2026-11-21 | Adds an audited `dataPath` trace (trigger → 3–6 hops → break) and feeds the stored architecture data flow into the prompt. Compact suspect/evidence/fix/concept copy retained. |
 | `roast-v1` | repo roast | 2026-11-20 | Generates one affectionate 8-30-word repo roast tied to exactly one real snapshot file. |
 
 Every prompt change = version bump + this table + a Decisions Log entry.
@@ -628,10 +634,43 @@ Append-only. Newest last.
   flow list and optional Mermaid UI; the stored guidebook schema remains unchanged. Rejected:
   saving only the current step (would lose completed progress on reload) and exposing raw Mermaid
   (not useful to the guided map flow).
+- **2026-11-21 — Debug sessions carry an audited data path between components.**
+  A first real tester asked whether Debug shows how data moves between components, not just
+  which files are involved. Every `debug-v3` session now returns
+  `dataPath { entry, steps[], breaksAt }`: 3–6 hops, each naming a real snapshot file, crossing
+  at least two distinct files. The debug prompt also receives the stored
+  `architecture.dataFlow`, so the trace cannot silently contradict the map. The normalizer
+  audits every hop file and every backticked path (one repair retry, then the stage fails), and
+  the stored field is optional so sessions created before `debug-v3` still render.
+  Rejected: reusing the generic architecture data flow as-is (it is repo-wide, not tied to the
+  symptom), and rendering the trace as another prose section (the learner needs a scannable
+  path, not a fourth wall of text).
 
 ## Change Log
 
 Newest first.
+
+- **2026-11-21 — Add the debug signal trace (data path between components).**
+  Files: `src/lib/domain/debug.ts`, `src/lib/pipeline/debug.ts`,
+  `src/lib/pipeline/debug.test.ts`, `src/lib/prompts.ts`, `src/app/api/debug/run/route.ts`,
+  `src/components/projects/debug-data-path.tsx`,
+  `src/app/(app)/projects/[id]/debug/[sid]/page.tsx`,
+  `src/app/(app)/projects/[id]/debug/page.tsx`, `src/app/globals.css`,
+  `PROJECT_CONTEXT.md`.
+  Why: the first external tester said linking explanations to files is useful but asked how data
+  moves between components, because a trace is what stops the "ask AI to rewrite the same file"
+  loop. Debug previously answered *where* the bug is, never *how the data got there*.
+  What: `debug-v3` asks for a `dataPath` (trigger, 3–6 hops with `from`, `to`, real `file`, and
+  `whatHappens`, then `breaksAt`) and receives the stored `architecture.dataFlow` as context.
+  The normalizer rejects invented hop files, invented backticked paths, fewer than three hops,
+  and traces that stay inside one file. The session page renders a "Signal trace" rail between
+  the detective board and the causes: amber `IN` node, numbered hops with lime nodes, a traveling
+  pulse, one expanded hop at a time, and a danger `BREAK` node. Old sessions simply omit it.
+  Verify: `npx tsc --noEmit`, `npm run lint`, `npm test` (111/111) and `npm run build` green.
+  Manually: run a new debug session on a ready project → open it and confirm the trace starts at
+  a real trigger, each hop names a snapshot file, only one hop expands at a time, "Open this hop
+  on GitHub" resolves, and the break line matches the reported symptom. Reload an older session
+  and confirm the page still renders without a trace.
 
 - **2026-11-20 — Complete M7 validation readiness verification.**
   Files: `docs/TEST_PLAN.md`, `PROJECT_CONTEXT.md`.
@@ -1117,6 +1156,15 @@ Older entries, one line each (full detail in git history):
 - **Lesson latency shares the 60s stage cap.** Live runs were 39s (part 1) and 20s (part 2) on a
   131,674-char snapshot; a repair retry on a near-cap repo could exceed `maxDuration = 60` in
   production, same risk as the architecture stage.
+- **The debug signal trace is model-generated, not import-proven.** Every hop's `file` is
+  audited against the snapshot, but the hand-off itself (`from` → `to`) is the model's reading
+  of the provided code, not an AST/import edge. It is a strong hypothesis for following a bug,
+  not a guarantee. A later version could derive edges from real imports before asking the model
+  to narrate them.
+- **Sessions created before `debug-v3` have no signal trace.** `dataPath` is optional on the
+  stored document so those pages still render, but only newly run sessions show the rail. There
+  is no backfill because the old sessions did not store enough reasoning to reconstruct one.
+
 - **FIXED 2026-11-20 — Badge and view analytics were missing.** `map-reader`,
   `foundation-builder`, `overview_section_viewed`, `lesson_viewed` and `return_visit` are now
   recorded (see Change Log 2026-11-20).

@@ -115,6 +115,30 @@ describe("normalizeDebugOutput", () => {
       "Step 2: Inspect `src/app/api/auth/route.ts` response headers.",
       "Step 3: Update `src/components/login-button.tsx` to handle errors.",
     ],
+    dataPath: {
+      entry: "The user clicks Sign in with Google.",
+      steps: [
+        {
+          from: "LoginButton",
+          to: "signInAction",
+          file: "src/components/login-button.tsx",
+          whatHappens: "The button sends the Google ID token into the sign-in action.",
+        },
+        {
+          from: "signInAction",
+          to: "session cookie",
+          file: "src/app/api/auth/route.ts",
+          whatHappens: "The handler verifies the token and prepares the session response.",
+        },
+        {
+          from: "session cookie",
+          to: "verifySession",
+          file: "src/lib/auth.ts",
+          whatHappens: "`src/lib/auth.ts` reads the cookie on the next request and resolves the user.",
+        },
+      ],
+      breaksAt: "The cookie never arrives at verifySession, so the next request looks signed out.",
+    },
     whyItWorks: {
       concept: "Secure HTTP Cookies",
       explanation:
@@ -141,6 +165,92 @@ describe("normalizeDebugOutput", () => {
     expect(result.value.fixSteps.length).toBe(3);
     expect(result.value.whyItWorks.concept).toBe("Secure HTTP Cookies");
     expect(result.value.quiz.length).toBe(1);
+    expect(result.value.dataPath.steps.length).toBe(3);
+    expect(result.value.dataPath.breaksAt).toContain("verifySession");
+  });
+
+  it("rejects a data path hop that lands on a file outside the snapshot", () => {
+    const invalid = {
+      ...validRaw,
+      dataPath: {
+        ...validRaw.dataPath,
+        steps: [
+          validRaw.dataPath.steps[0],
+          {
+            from: "signInAction",
+            to: "database",
+            file: "src/db/imaginary.ts",
+            whatHappens: "The write disappears here.",
+          },
+          validRaw.dataPath.steps[2],
+        ],
+      },
+    };
+
+    const result = normalizeDebugOutput(invalid, allowed);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.problems.some((p) => p.includes("src/db/imaginary.ts"))).toBe(true);
+  });
+
+  it("rejects a data path that never leaves one file", () => {
+    const invalid = {
+      ...validRaw,
+      dataPath: {
+        ...validRaw.dataPath,
+        steps: [
+          { ...validRaw.dataPath.steps[0], file: "src/lib/auth.ts" },
+          { ...validRaw.dataPath.steps[1], file: "src/lib/auth.ts" },
+          { ...validRaw.dataPath.steps[2], file: "src/lib/auth.ts" },
+        ],
+      },
+    };
+
+    const result = normalizeDebugOutput(invalid, allowed);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.problems.some((p) => p.includes("distinct files"))).toBe(true);
+  });
+
+  it("rejects a data path with fewer than three hops", () => {
+    const invalid = {
+      ...validRaw,
+      dataPath: {
+        ...validRaw.dataPath,
+        steps: [validRaw.dataPath.steps[0], validRaw.dataPath.steps[2]],
+      },
+    };
+
+    const result = normalizeDebugOutput(invalid, allowed);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.problems.some((p) => p.includes("data path hops"))).toBe(true);
+  });
+
+  it("rejects an invented backticked path in a data path hop", () => {
+    const invalid = {
+      ...validRaw,
+      dataPath: {
+        ...validRaw.dataPath,
+        steps: [
+          validRaw.dataPath.steps[0],
+          {
+            ...validRaw.dataPath.steps[1],
+            whatHappens: "The write is dropped in `src/lib/ghost.ts`.",
+          },
+          validRaw.dataPath.steps[2],
+        ],
+      },
+    };
+
+    const result = normalizeDebugOutput(invalid, allowed);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+
+    expect(result.problems.some((p) => p.includes("src/lib/ghost.ts"))).toBe(true);
   });
 
   it("rejects invented evidenceFiles not present in the snapshot", () => {

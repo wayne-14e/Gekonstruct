@@ -12,7 +12,7 @@ import { ARCHITECTURE_LIMITS } from "@/lib/domain/architecture";
 
 export const ARCHITECTURE_PROMPT_VERSION = "architecture-v2";
 export const LESSONS_PROMPT_VERSION = "lessons-v2";
-export const DEBUG_PROMPT_VERSION = "debug-v2";
+export const DEBUG_PROMPT_VERSION = "debug-v3";
 export const ROAST_PROMPT_VERSION = "roast-v1";
 
 /**
@@ -163,13 +163,19 @@ export type LessonsPromptInput = {
   existingLessons: LessonDoc[];
 };
 
-function mapSummary(guidebook: GuidebookDoc): string {
+function mapSummary(guidebook: GuidebookDoc, options?: { includeDataFlow?: boolean }): string {
   const layers = guidebook.architecture.layers
     .map((layer) => `- ${layer.name}: ${layer.purpose} (files: ${layer.files.join(", ")})`)
     .join("\n");
   const concepts = guidebook.concepts
     .map((concept) => `- ${concept.term}: ${concept.whyItMatters} (files: ${concept.files.join(", ")})`)
     .join("\n");
+
+  const dataFlow = options?.includeDataFlow
+    ? `\n\nDATA FLOW ALREADY MAPPED FOR THIS REPO\n${guidebook.architecture.dataFlow
+        .map((step, index) => `${index + 1}. ${step.from} → ${step.to}: ${step.whatHappens}`)
+        .join("\n")}`
+    : "";
 
   return `SUMMARY
 ${guidebook.summary.whatItDoes}
@@ -181,7 +187,7 @@ LAYERS
 ${layers}
 
 CONCEPTS
-${concepts}`;
+${concepts}${dataFlow}`;
 }
 
 export function buildLessonsUserPrompt(input: LessonsPromptInput): {
@@ -371,7 +377,7 @@ DETECTED STACK
 ${stackLines.length > 0 ? stackLines.join("\n") : "- unknown"}
 
 THE ARCHITECTURE MAP FOR THIS REPO
-${mapSummary(input.guidebook)}
+${mapSummary(input.guidebook, { includeDataFlow: true })}
 
 REPORTED BUG / SYMPTOM
 """
@@ -385,7 +391,7 @@ MATCHED CODEBASE FILES
 ${contents.join("\n\n")}${skippedLine}
 
 TASK
-Analyze the reported symptom in the context of THIS codebase. Explain the likely causes, provide actionable fix steps, teach the underlying engineering concept using their own files, and test their understanding with a short quiz.
+Analyze the reported symptom in the context of THIS codebase. Explain the likely causes, trace how the data moves between components until it breaks, provide actionable fix steps, teach the underlying engineering concept using their own files, and test their understanding with a short quiz.
 
 Return one JSON object with exactly this shape:
 
@@ -402,6 +408,18 @@ Return one JSON object with exactly this shape:
     "Step 2: Update ...",
     "Step 3: Verify ..."
   ],
+  "dataPath": {
+    "entry": "The trigger, in one short line: what the user or the framework does first.",
+    "steps": [
+      {
+        "from": "Short name of the component, handler or module that holds the data",
+        "to": "Short name of the next component, handler or module that receives it",
+        "file": "real/path/from/the/list.ts",
+        "whatHappens": "1-2 sentences: what this hop does to the data, and why it matters for this symptom."
+      }
+    ],
+    "breaksAt": "The exact point on this path where the reported symptom appears, in one sentence."
+  },
   "whyItWorks": {
     "concept": "Name of the fundamental concept (e.g. Idempotency in Route Handlers)",
     "explanation": "150-350 words in plain English teaching this fundamental engineering concept grounded in this codebase's files and architecture."
@@ -422,6 +440,13 @@ HARD CONSTRAINTS
   - Each item must have 1-4 evidenceFiles copied exactly from ALLOWED FILE PATHS.
   - confidence must be "high", "medium", or "low".
 - fixSteps: ${DEBUG_LIMITS.fixSteps.min}-${DEBUG_LIMITS.fixSteps.max} concrete, actionable steps. Each step must reference at least one real path in backticks from ALLOWED FILE PATHS.
+- dataPath: exactly ${DEBUG_LIMITS.dataPath.min}-${DEBUG_LIMITS.dataPath.max} hops, ordered from the trigger to the break.
+  - Start at the real trigger for this symptom, not at the top of the repository.
+  - Every "file" must be copied exactly from ALLOWED FILE PATHS, and the path must cross at least ${DEBUG_LIMITS.dataPath.distinctFiles} distinct files.
+  - Each "whatHappens" is 1-2 sentences, names the data being moved, and may cite a real path in backticks.
+  - Reuse the DATA FLOW ALREADY MAPPED FOR THIS REPO where it applies; do not contradict it without saying why.
+  - "breaksAt" must point at one of the hops above. Do not invent a hop you did not see in the provided files.
+  - fixSteps may name the hop they repair by its number (for example "at step 2").
 - whyItWorks: concept is a clear title; explanation is 150-350 words of plain English referencing at least one allowed path in backticks.
 - quiz: ${DEBUG_LIMITS.quiz.min}-${DEBUG_LIMITS.quiz.max} questions. Each has 3-4 options, exactly one correct, and correctIndex is the 0-based index. Options must be plausible within this codebase, never jokes.
 - gekoTip: at most two sentences in Geko's voice pointing at a real file.

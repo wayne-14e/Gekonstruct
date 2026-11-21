@@ -1,6 +1,7 @@
 import {
   DEBUG_LIMITS,
   DebugModelSchema,
+  type DataPathStep,
   type DebugModel,
   type DebugSessionContent,
   type LikelyCause,
@@ -272,7 +273,64 @@ export function normalizeDebugOutput(
 
   const clampedFixSteps = fixSteps.slice(0, DEBUG_LIMITS.fixSteps.max);
 
-  // 3. Audit whyItWorks
+  // 3. Audit dataPath: every hop must land on a real file, and the trace must
+  // actually move between components instead of restating one file.
+  const dataSteps: DataPathStep[] = [];
+  for (let i = 0; i < model.dataPath.steps.length; i += 1) {
+    const step = model.dataPath.steps[i];
+    const cleaned = cleanPathToken(step.file);
+
+    if (!allowedPaths.has(cleaned)) {
+      problems.push(
+        `dataPath.steps[${i}].file cites "${step.file}", which is not in this repository's snapshot.`,
+      );
+      continue;
+    }
+
+    for (const cited of extractBacktickedPaths(step.whatHappens)) {
+      if (!allowedPaths.has(cited)) {
+        problems.push(
+          `dataPath.steps[${i}].whatHappens mentions "${cited}", which is not in this repository's snapshot.`,
+        );
+      }
+    }
+
+    dataSteps.push({ ...step, file: cleaned });
+  }
+
+  for (const field of ["entry", "breaksAt"] as const) {
+    for (const cited of extractBacktickedPaths(model.dataPath[field])) {
+      if (!allowedPaths.has(cited)) {
+        problems.push(
+          `dataPath.${field} mentions "${cited}", which is not in this repository's snapshot.`,
+        );
+      }
+    }
+  }
+
+  if (dataSteps.length < DEBUG_LIMITS.dataPath.min) {
+    problems.push(
+      `Provide at least ${DEBUG_LIMITS.dataPath.min} data path hops, each on a real file from the snapshot.`,
+    );
+  }
+
+  const distinctDataFiles = new Set(dataSteps.map((step) => step.file));
+  if (
+    dataSteps.length >= DEBUG_LIMITS.dataPath.min &&
+    distinctDataFiles.size < DEBUG_LIMITS.dataPath.distinctFiles
+  ) {
+    problems.push(
+      `The data path must cross at least ${DEBUG_LIMITS.dataPath.distinctFiles} distinct files.`,
+    );
+  }
+
+  const clampedDataPath = {
+    entry: model.dataPath.entry,
+    steps: dataSteps.slice(0, DEBUG_LIMITS.dataPath.max),
+    breaksAt: model.dataPath.breaksAt,
+  };
+
+  // 4. Audit whyItWorks
   for (const cited of extractBacktickedPaths(model.whyItWorks.explanation)) {
     if (!allowedPaths.has(cited)) {
       problems.push(
@@ -281,7 +339,7 @@ export function normalizeDebugOutput(
     }
   }
 
-  // 4. Audit quiz
+  // 5. Audit quiz
   const validatedQuiz: QuizQuestion[] = [];
   for (let i = 0; i < model.quiz.length; i += 1) {
     const q = model.quiz[i];
@@ -304,7 +362,7 @@ export function normalizeDebugOutput(
 
   const clampedQuiz = validatedQuiz.slice(0, DEBUG_LIMITS.quiz.max);
 
-  // 5. Audit gekoTip
+  // 6. Audit gekoTip
   for (const cited of extractBacktickedPaths(model.gekoTip)) {
     if (!allowedPaths.has(cited)) {
       problems.push(`gekoTip mentions "${cited}", which is not in this repository's snapshot.`);
@@ -320,6 +378,7 @@ export function normalizeDebugOutput(
     value: {
       likelyCauses: clampedCauses,
       fixSteps: clampedFixSteps,
+      dataPath: clampedDataPath,
       whyItWorks: model.whyItWorks,
       quiz: clampedQuiz,
       gekoTip: model.gekoTip,

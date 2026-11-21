@@ -10,6 +10,7 @@ import { QuizQuestionSchema } from "@/lib/domain/lesson";
 export const DEBUG_LIMITS = {
   likelyCauses: { min: 2, max: 3 },
   fixSteps: { min: 3, max: 7 },
+  dataPath: { min: 3, max: 6, distinctFiles: 2 },
   quiz: { min: 1, max: 2 },
   options: { min: 3, max: 4 },
   xp: 30,
@@ -44,10 +45,37 @@ export const WhyItWorksSchema = z.object({
 
 export type WhyItWorks = z.infer<typeof WhyItWorksSchema>;
 
+/**
+ * One hop in the bug's data path: which component/module hands what to which one,
+ * and the real snapshot file where that hop happens.
+ */
+export const DataPathStepSchema = z.object({
+  from: TextSchema(160),
+  to: TextSchema(160),
+  file: FilePathSchema,
+  whatHappens: TextSchema(900),
+});
+
+export type DataPathStep = z.infer<typeof DataPathStepSchema>;
+
+/**
+ * The trace a learner follows to see how data moves between components before the
+ * symptom appears. `entry` is the trigger, `breaksAt` is where the reported symptom
+ * shows up on this path.
+ */
+export const DataPathSchema = z.object({
+  entry: TextSchema(200),
+  steps: z.array(DataPathStepSchema).min(1).max(12),
+  breaksAt: TextSchema(400),
+});
+
+export type DataPath = z.infer<typeof DataPathSchema>;
+
 /** Loose schema for raw LLM JSON before validation and path auditing. */
 export const DebugModelSchema = z.object({
   likelyCauses: z.array(LikelyCauseSchema).min(DEBUG_LIMITS.likelyCauses.min).max(6),
   fixSteps: z.array(TextSchema(1_000)).min(DEBUG_LIMITS.fixSteps.min).max(10),
+  dataPath: DataPathSchema,
   whyItWorks: WhyItWorksSchema,
   quiz: z.array(QuizQuestionSchema).min(DEBUG_LIMITS.quiz.min).max(4),
   gekoTip: TextSchema(600),
@@ -65,6 +93,14 @@ export const DebugSessionContentSchema = z.object({
     .array(TextSchema(1_000))
     .min(DEBUG_LIMITS.fixSteps.min)
     .max(DEBUG_LIMITS.fixSteps.max),
+  dataPath: z.object({
+    entry: TextSchema(200),
+    steps: z
+      .array(DataPathStepSchema)
+      .min(DEBUG_LIMITS.dataPath.min)
+      .max(DEBUG_LIMITS.dataPath.max),
+    breaksAt: TextSchema(400),
+  }),
   whyItWorks: WhyItWorksSchema,
   quiz: z
     .array(QuizQuestionSchema)
@@ -96,6 +132,7 @@ export const DebugSessionDocSchema = z.object({
   error: z.string().nullable().optional(),
   likelyCauses: z.array(LikelyCauseSchema).optional(),
   fixSteps: z.array(z.string()).optional(),
+  dataPath: DataPathSchema.optional(),
   whyItWorks: WhyItWorksSchema.optional(),
   quiz: z.array(QuizQuestionSchema).optional(),
   gekoTip: z.string().optional(),

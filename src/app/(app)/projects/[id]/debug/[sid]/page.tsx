@@ -18,6 +18,7 @@ import { XpBadge } from "@/components/app/xp-badge";
 import { CodeBlock } from "@/components/projects/code-block";
 import { DebugQuiz } from "@/components/projects/debug-quiz";
 import { DebugDetective } from "@/components/projects/debug-detective";
+import { DebugDataPath } from "@/components/projects/debug-data-path";
 import { PathwayNav } from "@/components/projects/pathway-nav";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth/session";
@@ -114,6 +115,10 @@ export default async function DebugSessionPage({
 
       {session.status === "done" && session.likelyCauses ? (
         <DebugDetective symptom={session.symptom} causes={session.likelyCauses} />
+      ) : null}
+
+      {session.status === "done" && session.dataPath ? (
+        <DebugDataPath dataPath={session.dataPath} repoUrl={project.repoUrl} />
       ) : null}
 
       {session.status === "failed" ? (

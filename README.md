@@ -1,4 +1,4 @@
-# Gekonstruct
+# Gekonstruct 🦎
 
 **Understand the code you build with AI.**
 

@@ -108,8 +108,8 @@ short subtitle, two CTAs, limits line) above a full-width sample-pipeline window
 mac-style red/yellow/green dots, followed by the pathways, how-it-works and closing CTA.
 Signed-in visitors are redirected to `/dashboard`; signing out returns them to `/`.
 
-Last verified: 2026-11-21 — `npm run build`, `npx tsc --noEmit`, `npm run lint`, and
-`npm test` green (111/111). Architecture uses a four-section pager, React Flow skill map,
+Last verified: 2026-11-24 — `npm run build`, `npx tsc --noEmit`, `npm run lint`, and
+`npm test` green (111/111). Signal trace in Debug & Learn pathway renders hop text stably without scaling/bouncing animations. Architecture uses a four-section pager, React Flow skill map,
 and a saved, step-by-step request walkthrough;
 Foundations include a progressive Monaco split workspace; Debug includes
 the detective board and the audited signal trace of how data moves between components. The header includes Profile and the account popup labels Community as
@@ -649,6 +649,15 @@ Append-only. Newest last.
 ## Change Log
 
 Newest first.
+
+- **2026-11-24 — Remove scaling and bouncing animation from debug signal trace text.**
+  Files: `src/components/projects/debug-data-path.tsx`, `PROJECT_CONTEXT.md`.
+  Why: opening and switching active hops in the debug session signal trace triggered `animate-pop`,
+  causing the hop explanation text to scale and bounce.
+  What: removed `animate-pop` from the active hop card container in `DebugDataPath`. Hop explanation
+  text now displays immediately and stably without scale or bounce animation.
+  Verify: open `/projects/[id]/debug/[sid]`, click through the signal trace hops, and confirm the
+  explanation text expands immediately without scaling or bouncing.
 
 - **2026-11-21 — Add the debug signal trace (data path between components).**
   Files: `src/lib/domain/debug.ts`, `src/lib/pipeline/debug.ts`,

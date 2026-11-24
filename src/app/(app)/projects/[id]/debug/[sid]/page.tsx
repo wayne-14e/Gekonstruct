@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   FileCode2,
   HelpCircle,
-  Lightbulb,
   ListOrdered,
   RotateCcw,
   ShieldAlert,
@@ -248,25 +247,7 @@ export default async function DebugSessionPage({
             </section>
           ) : null}
 
-          {/* Section 3: Why It Works (Concept panel) */}
-          {session.whyItWorks ? (
-            <section aria-labelledby="why-heading">
-              <div className="rounded-2xl border border-[#1e5033] bg-[#0e2a1c]/60 p-5 sm:p-6">
-                <div className="flex items-center gap-2">
-                  <Lightbulb className="size-5 text-primary" aria-hidden="true" />
-                  <p className="label-mono text-primary">Underlying Concept</p>
-                </div>
-                <h2 id="why-heading" className="mt-2 text-xl font-semibold text-foreground">
-                  {session.whyItWorks.concept}
-                </h2>
-                <div className="mt-3 text-sm leading-relaxed text-[#c2dfcd] space-y-2">
-                  <p>{session.whyItWorks.explanation}</p>
-                </div>
-              </div>
-            </section>
-          ) : null}
-
-          {/* Section 4: Geko Tip */}
+          {/* Section 3: Geko Tip */}
           {session.gekoTip ? (
             <section aria-label="Geko's debugging tip">
               <SpeechBubble mood="calm">
@@ -275,7 +256,7 @@ export default async function DebugSessionPage({
             </section>
           ) : null}
 
-          {/* Section 5: Quiz */}
+          {/* Section 4: Quiz */}
           {session.quiz && session.quiz.length > 0 ? (
             <DebugQuiz
               projectId={project.id}

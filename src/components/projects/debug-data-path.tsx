@@ -139,7 +139,7 @@ export function DebugDataPath({ dataPath, repoUrl }: { dataPath: DataPath; repoU
                       {active ? (
                         <div
                           id={`data-path-hop-${index}`}
-                          className="animate-pop border-t border-primary/20 px-3.5 py-3"
+                          className="border-t border-primary/20 px-3.5 py-3"
                         >
                           <p className="text-sm leading-relaxed text-[#c2dfcd]">
                             <InlineText text={step.whatHappens} />

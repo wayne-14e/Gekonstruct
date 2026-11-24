@@ -330,16 +330,7 @@ export function normalizeDebugOutput(
     breaksAt: model.dataPath.breaksAt,
   };
 
-  // 4. Audit whyItWorks
-  for (const cited of extractBacktickedPaths(model.whyItWorks.explanation)) {
-    if (!allowedPaths.has(cited)) {
-      problems.push(
-        `whyItWorks.explanation mentions "${cited}", which is not in this repository's snapshot.`,
-      );
-    }
-  }
-
-  // 5. Audit quiz
+  // 4. Audit quiz
   const validatedQuiz: QuizQuestion[] = [];
   for (let i = 0; i < model.quiz.length; i += 1) {
     const q = model.quiz[i];
@@ -379,7 +370,6 @@ export function normalizeDebugOutput(
       likelyCauses: clampedCauses,
       fixSteps: clampedFixSteps,
       dataPath: clampedDataPath,
-      whyItWorks: model.whyItWorks,
       quiz: clampedQuiz,
       gekoTip: model.gekoTip,
       xp: DEBUG_LIMITS.xp,

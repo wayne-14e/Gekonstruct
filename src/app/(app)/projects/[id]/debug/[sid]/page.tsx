@@ -247,7 +247,8 @@ export default async function DebugSessionPage({
             </section>
           ) : null}
 
-          {/* Section 3: Geko Tip */}
+
+          {/* Section 4: Geko Tip */}
           {session.gekoTip ? (
             <section aria-label="Geko's debugging tip">
               <SpeechBubble mood="calm">
@@ -256,7 +257,7 @@ export default async function DebugSessionPage({
             </section>
           ) : null}
 
-          {/* Section 4: Quiz */}
+          {/* Section 5: Quiz */}
           {session.quiz && session.quiz.length > 0 ? (
             <DebugQuiz
               projectId={project.id}

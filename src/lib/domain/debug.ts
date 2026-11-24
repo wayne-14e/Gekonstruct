@@ -76,7 +76,6 @@ export const DebugModelSchema = z.object({
   likelyCauses: z.array(LikelyCauseSchema).min(DEBUG_LIMITS.likelyCauses.min).max(6),
   fixSteps: z.array(TextSchema(1_000)).min(DEBUG_LIMITS.fixSteps.min).max(10),
   dataPath: DataPathSchema,
-  whyItWorks: WhyItWorksSchema,
   quiz: z.array(QuizQuestionSchema).min(DEBUG_LIMITS.quiz.min).max(4),
   gekoTip: TextSchema(600),
 });
@@ -101,7 +100,6 @@ export const DebugSessionContentSchema = z.object({
       .max(DEBUG_LIMITS.dataPath.max),
     breaksAt: TextSchema(400),
   }),
-  whyItWorks: WhyItWorksSchema,
   quiz: z
     .array(QuizQuestionSchema)
     .min(DEBUG_LIMITS.quiz.min)

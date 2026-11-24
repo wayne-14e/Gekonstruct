@@ -12,7 +12,7 @@ import { ARCHITECTURE_LIMITS } from "@/lib/domain/architecture";
 
 export const ARCHITECTURE_PROMPT_VERSION = "architecture-v2";
 export const LESSONS_PROMPT_VERSION = "lessons-v2";
-export const DEBUG_PROMPT_VERSION = "debug-v3";
+export const DEBUG_PROMPT_VERSION = "debug-v4";
 export const ROAST_PROMPT_VERSION = "roast-v1";
 
 /**
@@ -420,10 +420,6 @@ Return one JSON object with exactly this shape:
     ],
     "breaksAt": "The exact point on this path where the reported symptom appears, in one sentence."
   },
-  "whyItWorks": {
-    "concept": "Name of the fundamental concept (e.g. Idempotency in Route Handlers)",
-    "explanation": "150-350 words in plain English teaching this fundamental engineering concept grounded in this codebase's files and architecture."
-  },
   "quiz": [
     {
       "question": "A question testing understanding of THIS bug and how THIS codebase handles it.",
@@ -447,7 +443,6 @@ HARD CONSTRAINTS
   - Reuse the DATA FLOW ALREADY MAPPED FOR THIS REPO where it applies; do not contradict it without saying why.
   - "breaksAt" must point at one of the hops above. Do not invent a hop you did not see in the provided files.
   - fixSteps may name the hop they repair by its number (for example "at step 2").
-- whyItWorks: concept is a clear title; explanation is 150-350 words of plain English referencing at least one allowed path in backticks.
 - quiz: ${DEBUG_LIMITS.quiz.min}-${DEBUG_LIMITS.quiz.max} questions. Each has 3-4 options, exactly one correct, and correctIndex is the 0-based index. Options must be plausible within this codebase, never jokes.
 - gekoTip: at most two sentences in Geko's voice pointing at a real file.
 - Never cite a path outside ALLOWED FILE PATHS. Never invent files.

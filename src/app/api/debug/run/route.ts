@@ -190,7 +190,6 @@ export async function POST(request: Request) {
       likelyCauses: result.content.likelyCauses,
       fixSteps: result.content.fixSteps,
       dataPath: result.content.dataPath,
-      whyItWorks: result.content.whyItWorks,
       quiz: result.content.quiz,
       gekoTip: result.content.gekoTip,
       xp: result.content.xp,

@@ -75,8 +75,8 @@ even when analysis later fails, since the model call may already incur cost.
 `/projects/[id]/debug` provides the symptom input form with quick suggestion chips and session
 history. `/projects/[id]/debug/[sid]` renders the reported symptom, the detective board, a
 signal trace of how the data moves between components until it breaks, likely causes with
-confidence badges and shiki `<CodeBlock>` evidence previews, concrete fix steps, a
-why-it-works concept panel, Geko tip bubble, and client `<DebugQuiz>`. `completeDebugSession` re-grades the quiz on
+confidence badges and shiki `<CodeBlock>` evidence previews, concrete fix steps,
+Geko tip bubble, and client `<DebugQuiz>`. `completeDebugSession` re-grades the quiz on
 the server (≥70%), writes progress `debug[sid] = { completed: true, at }`, awards 30 XP on first
 pass, grants the `"bug-whisperer"` badge on the first completed debug session (written to both
 `progress.badges` and `users/{uid}.badges`), and records `debug_completed` inside a single
@@ -109,7 +109,7 @@ mac-style red/yellow/green dots, followed by the pathways, how-it-works and clos
 Signed-in visitors are redirected to `/dashboard`; signing out returns them to `/`.
 
 Last verified: 2026-11-24 — `npm run build`, `npx tsc --noEmit`, `npm run lint`, and
-`npm test` green (111/111). Signal trace in Debug & Learn pathway renders hop text stably without scaling/bouncing animations. Architecture uses a four-section pager, React Flow skill map,
+`npm test` green (111/111). Underlying concept panel removed end-to-end from Debug & Learn pathway. Signal trace in Debug & Learn pathway renders hop text stably without scaling/bouncing animations. Architecture uses a four-section pager, React Flow skill map,
 and a saved, step-by-step request walkthrough;
 Foundations include a progressive Monaco split workspace; Debug includes
 the detective board and the audited signal trace of how data moves between components. The header includes Profile and the account popup labels Community as
@@ -278,12 +278,12 @@ As built through Phase 6 (all timestamps are epoch **milliseconds**, not Firesto
 - `projects/{pid}/debugSessions/{sid}` — `{ id, projectId, symptom, status: 'pending'|'done'|'failed',
   error: string|null, likelyCauses: [{ cause, evidenceFiles[], confidence: 'high'|'medium'|'low' }],
   fixSteps: string[], dataPath: { entry, steps: [{ from, to, file, whatHappens }], breaksAt },
-  whyItWorks: { concept, explanation }, quiz: [{ question, options[], correctIndex, why }],
+  quiz: [{ question, options[], correctIndex, why }],
   gekoTip: string, xp: 30, createdAt, analyzedAt, model, promptVersion }`, validated by
   `DebugSessionDocSchema`. Created as `pending` on `/api/debug/run`, updated to `done` or `failed`.
   `evidenceFiles` and every `dataPath.steps[].file` always contain real snapshot paths.
-  `dataPath` is optional on the stored doc so sessions created before `debug-v3` still render;
-  new sessions always carry 3–6 audited hops across at least two distinct files.
+  `dataPath` and legacy `whyItWorks` are optional on the stored doc so sessions created before
+  `debug-v3` or `debug-v4` still render; new sessions carry 3–6 audited hops across at least two distinct files.
 
 ## Env & Secrets
 
@@ -310,7 +310,7 @@ Prompts live in `src/lib/prompts.ts` only. Version constant + last change:
 |---|---|---|---|
 | `architecture-v2` | architecture | 2026-11-20 | Architecture map copy now prefers one idea per sentence and scannable UI-ready mission, clue, evidence and trace language while retaining the real-path and JSON constraints. |
 | `lessons-v2` | lessons1 / lessons2 | 2026-11-20 | Foundations copy now prefers short, scannable, mission-ready explanations and keeps the existing 250–500-word and real-codeRef constraints. |
-| `debug-v3` | debug | 2026-11-21 | Adds an audited `dataPath` trace (trigger → 3–6 hops → break) and feeds the stored architecture data flow into the prompt. Compact suspect/evidence/fix/concept copy retained. |
+| `debug-v4` | debug | 2026-11-24 | Removes whyItWorks (Underlying concept) from debug generation to streamline output, avoid unnecessary token usage, and focus on real evidence, audited data path and actionable fix steps. |
 | `roast-v1` | repo roast | 2026-11-20 | Generates one affectionate 8-30-word repo roast tied to exactly one real snapshot file. |
 
 Every prompt change = version bump + this table + a Decisions Log entry.
@@ -645,10 +645,33 @@ Append-only. Newest last.
   Rejected: reusing the generic architecture data flow as-is (it is repo-wide, not tied to the
   symptom), and rendering the trace as another prose section (the learner needs a scannable
   path, not a fourth wall of text).
+- **2026-11-24 — Remove Underlying Concept (whyItWorks) from Debug & Learn end-to-end.**
+  User explicitly requested removing the Underlying Concept section altogether from Debug & Learn.
+  To eliminate unnecessary token generation costs and latency, `whyItWorks` was removed end-to-end:
+  the UI section was removed from `/projects/[id]/debug/[sid]`, the Geko bubble copy on `/projects/[id]/debug`
+  was updated, `DEBUG_PROMPT_VERSION` was bumped to `debug-v4` without `whyItWorks`, the pipeline audit
+  step was removed, and `DebugModelSchema`/`DebugSessionContentSchema` dropped `whyItWorks`. For backward
+  compatibility with older Firestore sessions, `DebugSessionDocSchema.whyItWorks` remains optional.
+  Rejected: UI-only hiding (would continue to spend model tokens and latency on unused prose and risk
+  audit retries on hallucinated concept paths).
 
 ## Change Log
 
 Newest first.
+
+- **2026-11-24 — Remove Underlying Concept section from Debug & Learn end-to-end.**
+  Files: `src/app/(app)/projects/[id]/debug/[sid]/page.tsx`, `src/app/(app)/projects/[id]/debug/page.tsx`,
+  `src/lib/prompts.ts`, `src/lib/domain/debug.ts`, `src/lib/pipeline/debug.ts`,
+  `src/lib/pipeline/debug.test.ts`, `src/app/api/debug/run/route.ts`, `PROJECT_CONTEXT.md`.
+  Why: simplify the Debug & Learn view to focus on the detective board, signal trace, likely causes,
+  and actionable fix steps, while saving LLM token cost and generation latency.
+  What: removed the Underlying Concept UI panel and unused `Lightbulb` import from `/projects/[id]/debug/[sid]`,
+  adjusted speech bubble text on `/projects/[id]/debug`, bumped debug prompt version to `debug-v4`
+  (removing `whyItWorks` JSON property and prompt constraints), updated `DebugModelSchema` and
+  `DebugSessionContentSchema`, removed `whyItWorks` auditing and persistence in route handler, and updated tests.
+  Verify: `npx tsc --noEmit`, `npm test` (111/111), and `npm run build` all pass green. Navigate to
+  `/projects/[id]/debug/[sid]` to verify the session renders causes, fix steps, tip, and quiz without the
+  Underlying Concept panel.
 
 - **2026-11-24 — Remove scaling and bouncing animation from debug signal trace text.**
   Files: `src/components/projects/debug-data-path.tsx`, `PROJECT_CONTEXT.md`.

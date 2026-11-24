@@ -92,8 +92,7 @@ export default async function DebugPage({ params }: { params: Promise<{ id: stri
           <p>
             Tell me what&apos;s breaking, paste an error message, or describe what goes wrong. I&apos;ll
             search your real files, isolate the likely causes with evidence, trace how the data moves
-            between your components until it breaks, give you safe fix steps, and teach you the
-            underlying concept so you never get stuck on it again.
+            between your components until it breaks, and give you safe fix steps so you can resolve it.
           </p>
         </SpeechBubble>
       </div>

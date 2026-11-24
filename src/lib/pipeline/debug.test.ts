@@ -139,11 +139,6 @@ describe("normalizeDebugOutput", () => {
       ],
       breaksAt: "The cookie never arrives at verifySession, so the next request looks signed out.",
     },
-    whyItWorks: {
-      concept: "Secure HTTP Cookies",
-      explanation:
-        "Browsers enforce cookie security policies based on attributes defined in `src/lib/auth.ts`. Without httpOnly and secure flags, client scripts cannot maintain trusted session state.",
-    },
     quiz: [
       {
         question: "Which file configures the session cookie attributes?",
@@ -163,7 +158,6 @@ describe("normalizeDebugOutput", () => {
     expect(result.value.xp).toBe(30);
     expect(result.value.likelyCauses.length).toBe(2);
     expect(result.value.fixSteps.length).toBe(3);
-    expect(result.value.whyItWorks.concept).toBe("Secure HTTP Cookies");
     expect(result.value.quiz.length).toBe(1);
     expect(result.value.dataPath.steps.length).toBe(3);
     expect(result.value.dataPath.breaksAt).toContain("verifySession");

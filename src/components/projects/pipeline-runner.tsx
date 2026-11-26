@@ -316,15 +316,6 @@ export function PipelineRunner({
                     dimmed && "opacity-60",
                   )}
                 >
-                  {state === "active" ? (
-                    <div
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-primary/15"
-                    >
-                      <div className="animate-sweep h-full w-1/3 bg-gradient-to-r from-transparent via-primary to-transparent" />
-                    </div>
-                  ) : null}
-
                   <div className="flex min-w-0 items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground">{step.label}</p>
@@ -392,13 +383,7 @@ export function PipelineRunner({
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <Button type="button" size="lg" onClick={run} disabled={running || startIndex >= STEPS.length}>
           {running ? (
-            <>
-              <span className="relative flex size-2.5" aria-hidden="true">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary-foreground/75" />
-                <span className="relative inline-flex size-2.5 rounded-full bg-primary-foreground" />
-              </span>
-              Working…
-            </>
+            "Working…"
           ) : failedStep ? (
             <>
               <RotateCcw aria-hidden="true" />

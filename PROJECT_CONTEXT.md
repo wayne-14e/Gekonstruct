@@ -677,6 +677,15 @@ Append-only. Newest last.
 
 Newest first.
 
+- **2026-11-26 — Remove active step-card sweep line and "Working…" button dot in `PipelineRunner`.**
+  Files: `src/components/projects/pipeline-runner.tsx`, `PROJECT_CONTEXT.md`.
+  Why: reduce distracting motion during pipeline runs.
+  What: removed the top `animate-sweep` runner line inside active step cards and removed the
+  `animate-ping` dot inside the `"Working…"` action button so it renders plain text.
+  Verify: `npx tsc --noEmit` and `npx vitest run` (16 files, 124 tests) green.
+  Manual: open a project at `/projects/[id]`, start the pipeline, and confirm the action button
+  shows `"Working…"` with no dot and active step cards have no top sweeping line.
+
 - **2026-11-26 — Route "All projects" links to `/projects` instead of `/dashboard`.**
   Files: `src/app/(app)/projects/[id]/page.tsx`,
   `src/app/(app)/projects/[id]/overview/page.tsx`,

@@ -87,7 +87,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
       <Link
-        href="/dashboard"
+        href="/projects"
         className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-4" aria-hidden="true" />

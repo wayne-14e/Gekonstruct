@@ -677,6 +677,21 @@ Append-only. Newest last.
 
 Newest first.
 
+- **2026-11-26 — Route "All projects" links to `/projects` instead of `/dashboard`.**
+  Files: `src/app/(app)/projects/[id]/page.tsx`,
+  `src/app/(app)/projects/[id]/overview/page.tsx`,
+  `src/app/(app)/projects/[id]/learn/page.tsx`, `PROJECT_CONTEXT.md`.
+  Why: `/projects` is the dedicated Projects page, whereas `/dashboard` now hosts repository
+  connection and recent activity; "All projects" back/fallback links still pointed to
+  `/dashboard`.
+  What: updated the `<- All projects` link on `/projects/[id]` and the `"All projects"` fallback
+  buttons in `MapMissing` (`/projects/[id]/overview`) and `LessonsMissing` (`/projects/[id]/learn`)
+  to link to `/projects`.
+  Verify: `npm run typecheck`, `npm run lint`, `npm test` (124/124), and `npm run build` green.
+  Manual: open any project at `/projects/[id]` and click **← All projects** to confirm it
+  navigates to `/projects` (Your projects); also check the **All projects** fallback button on
+  a project without a map (`/projects/[id]/overview`) or without lessons (`/projects/[id]/learn`).
+
 - **2026-11-26 — Connect pipeline progress dots into a live green signal trace.**
   Files: `src/components/projects/pipeline-runner.tsx`,
   `src/lib/pipeline/runner-state.ts`, `src/lib/pipeline/runner-state.test.ts`,

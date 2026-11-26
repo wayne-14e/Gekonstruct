@@ -330,7 +330,7 @@ function LessonsMissing({
           </Link>
         </Button>
         <Button asChild variant="outline">
-          <Link href="/dashboard">
+          <Link href="/projects">
             <BookOpen aria-hidden="true" />
             All projects
           </Link>

@@ -236,7 +236,7 @@ function MapMissing({ project }: { project: ProjectRecord }) {
             </Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/dashboard">All projects</Link>
+            <Link href="/projects">All projects</Link>
           </Button>
         </div>
       </div>

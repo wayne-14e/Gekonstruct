@@ -13,7 +13,7 @@ import { ARCHITECTURE_LIMITS } from "@/lib/domain/architecture";
 export const ARCHITECTURE_PROMPT_VERSION = "architecture-v2";
 export const LESSONS_PROMPT_VERSION = "lessons-v2";
 export const DEBUG_PROMPT_VERSION = "debug-v4";
-export const ROAST_PROMPT_VERSION = "roast-v1";
+export const ROAST_PROMPT_VERSION = "roast-v2";
 
 /**
  * Voice rules shared by every stage. BLUEPRINT §6 + §10: plain English, short sentences,
@@ -456,18 +456,139 @@ export const ROAST_SYSTEM_PROMPT = `You are Geko, Gekonstruct's witty orange roa
 Voice rules:
 - Exactly one sentence.
 - Direct and punchy, 8-30 words.
-- Make it about a real, observable codebase pattern.
+- Your observation MUST come from something literally visible in the CODE SNAPSHOT — a name, a count, a pattern, a comment, a structure — not from inference or assumption.
 - Point the target at one real file path from ALLOWED FILE PATHS.
 - You may call the project or its choices chaotic, but never insult the user.
 - No emojis, profanity, generic programming advice, or markdown.
 
 Return only the JSON object. No prose before or after it.`;
 
+/** Pre-computed structural facts derived from the snapshot without any LLM. */
+export interface RoastFacts {
+  /** Files whose content contains at least one TODO or FIXME comment. */
+  todoFiles: string[];
+  /** File paths that appear more than once under different directories (basename collision). */
+  duplicateNames: string[];
+  /** Files whose stored content length exceeds 8 000 characters. */
+  largeFiles: string[];
+  /** Number of direct dependencies listed in package.json / requirements.txt / pyproject.toml. */
+  depCount: number | null;
+  /** File paths that contain the word "auth" (case-insensitive). */
+  authFiles: string[];
+}
+
+/**
+ * Derive RoastFacts from a snapshot without calling the model.
+ * These facts are injected into the prompt as VERIFIED FACTS so the model
+ * cannot hallucinate structural claims about the repo.
+ */
+export function computeRoastFacts(files: SnapshotFile[]): RoastFacts {
+  const TODO_RE = /\b(TODO|FIXME)\b/;
+  const todoFiles: string[] = [];
+  const largeFiles: string[] = [];
+  const authFiles: string[] = [];
+
+  // basename → list of full paths
+  const byBasename = new Map<string, string[]>();
+  let depCount: number | null = null;
+
+  for (const file of files) {
+    if (TODO_RE.test(file.content)) todoFiles.push(file.path);
+    if (file.content.length > 8_000) largeFiles.push(file.path);
+    if (/auth/i.test(file.path)) authFiles.push(file.path);
+
+    const base = file.path.split("/").pop() ?? file.path;
+    const existing = byBasename.get(base) ?? [];
+    existing.push(file.path);
+    byBasename.set(base, existing);
+
+    // Count deps from known manifest formats
+    if (depCount === null) {
+      if (file.path === "package.json" || file.path.endsWith("/package.json")) {
+        try {
+          const parsed = JSON.parse(file.content) as Record<string, unknown>;
+          const runtimeDeps =
+            parsed.dependencies && typeof parsed.dependencies === "object" && !Array.isArray(parsed.dependencies)
+              ? parsed.dependencies
+              : {};
+          const devDeps =
+            parsed.devDependencies && typeof parsed.devDependencies === "object" && !Array.isArray(parsed.devDependencies)
+              ? parsed.devDependencies
+              : {};
+          depCount = Object.keys({ ...runtimeDeps, ...devDeps }).length;
+        } catch {
+          // malformed JSON — skip
+        }
+      } else if (
+        file.path === "requirements.txt" ||
+        file.path.endsWith("/requirements.txt")
+      ) {
+        depCount = file.content
+          .split("\n")
+          .filter((l) => l.trim() && !l.trim().startsWith("#")).length;
+      } else if (
+        file.path === "pyproject.toml" ||
+        file.path.endsWith("/pyproject.toml")
+      ) {
+        // Count lines under [tool.poetry.dependencies] or [project.dependencies]
+        const lines = file.content.split("\n");
+        let inDeps = false;
+        let count = 0;
+        for (const line of lines) {
+          if (/^\[.*(dependencies).*\]/i.test(line)) { inDeps = true; continue; }
+          if (inDeps && line.trim().startsWith("[")) { inDeps = false; }
+          if (inDeps && line.trim() && !line.trim().startsWith("#")) count++;
+        }
+        if (count > 0) depCount = count;
+      }
+    }
+  }
+
+  const duplicateNames = [...byBasename.entries()]
+    .filter(([, paths]) => paths.length > 1)
+    .flatMap(([, paths]) => paths);
+
+  return { todoFiles, duplicateNames, largeFiles, depCount, authFiles };
+}
+
+function formatFactsSection(facts: RoastFacts): string {
+  const lines: string[] = [];
+
+  lines.push(
+    facts.todoFiles.length > 0
+      ? `- TODO/FIXME comments found in ${facts.todoFiles.length} file(s): ${facts.todoFiles.slice(0, 5).join(", ")}`
+      : "- No TODO or FIXME comments found in the snapshot.",
+  );
+  lines.push(
+    facts.duplicateNames.length > 0
+      ? `- Files sharing the same basename across different directories: ${facts.duplicateNames.slice(0, 6).join(", ")}`
+      : "- No duplicate filenames across directories.",
+  );
+  lines.push(
+    facts.largeFiles.length > 0
+      ? `- Files over 8 000 characters: ${facts.largeFiles.slice(0, 5).join(", ")}`
+      : "- No files over 8 000 characters in the snapshot.",
+  );
+  lines.push(
+    facts.depCount !== null
+      ? `- Dependency count (from manifest): ${facts.depCount}`
+      : "- No dependency manifest found in snapshot.",
+  );
+  lines.push(
+    facts.authFiles.length > 0
+      ? `- Files whose path contains "auth": ${facts.authFiles.slice(0, 6).join(", ")}`
+      : `- No files with "auth" in the path.`,
+  );
+
+  return lines.join("\n");
+}
+
 export function buildRoastUserPrompt(input: {
   owner: string;
   repo: string;
   stack: Stack | null;
   files: SnapshotFile[];
+  facts: RoastFacts;
 }): { prompt: string; includedFiles: number; includedChars: number } {
   const stackLines = input.stack
     ? STACK_LABELS.flatMap(([key, label]) => {
@@ -492,6 +613,9 @@ export function buildRoastUserPrompt(input: {
 DETECTED STACK
 ${stackLines.length > 0 ? stackLines.join("\n") : "- unknown"}
 
+VERIFIED FACTS (pre-computed from the snapshot — treat as ground truth)
+${formatFactsSection(input.facts)}
+
 ALLOWED FILE PATHS (file must be copied exactly)
 ${allowedPaths.map((path) => `- ${path}`).join("\n")}
 
@@ -499,7 +623,8 @@ CODE SNAPSHOT
 ${contents.join("\n\n")}
 
 TASK
-Find one specific, funny, affectionate roast based on observable code patterns. Prefer repetition, naming, dependency sprawl, README/code mismatch, auth spread, TODO debt, oversized files, or suspiciously similar folders.
+Find one specific, funny, affectionate roast based on something literally present in the CODE SNAPSHOT above.
+Good targets: naming patterns you can see, TODO/FIXME debt confirmed by VERIFIED FACTS, dependency count from VERIFIED FACTS, duplicate filenames from VERIFIED FACTS, auth-file spread from VERIFIED FACTS, oversized files from VERIFIED FACTS, repetitive boilerplate, folder structure choices.
 
 Return one JSON object:
 {"quote":"One punchy sentence naming the pattern.","file":"exact/path/from/the/list.ts"}
@@ -507,7 +632,8 @@ Return one JSON object:
 HARD CONSTRAINTS
 - quote: exactly one sentence, 8-30 words, no path in the quote.
 - file: copied exactly from ALLOWED FILE PATHS.
-- Do not mention or infer facts not supported by the snapshot.
+- The pattern you describe MUST be supported by VERIFIED FACTS or directly visible in the CODE SNAPSHOT. Do not infer or assume anything about files not in the snapshot.
+- Never claim a file is missing from the repository (the snapshot intentionally omits .env*, lockfiles, binaries, and files beyond the snapshot cap).
 - Never insult the person; roast the code structure or choices.
 - Make the quote shareable and specific enough that the linked file proves it.`;
 

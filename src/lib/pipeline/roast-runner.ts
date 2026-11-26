@@ -5,6 +5,7 @@ import { requestStructured } from "@/lib/llm";
 import { normalizeRepoRoast, type RepoRoast } from "@/lib/pipeline/roast";
 import {
   buildRoastUserPrompt,
+  computeRoastFacts,
   ROAST_PROMPT_VERSION,
   ROAST_SYSTEM_PROMPT,
 } from "@/lib/prompts";
@@ -21,11 +22,13 @@ export async function runRepoRoast(input: {
   promptVersion: string;
 }> {
   const allowedPaths = input.snapshot.files.map((file) => file.path);
+  const facts = computeRoastFacts(input.snapshot.files);
   const { prompt } = buildRoastUserPrompt({
     owner: input.owner,
     repo: input.repo,
     stack: input.stack,
     files: input.snapshot.files,
+    facts,
   });
 
   const result = await requestStructured({

@@ -318,7 +318,7 @@ Prompts live in `src/lib/prompts.ts` only. Version constant + last change:
 | `architecture-v2` | architecture | 2026-11-20 | Architecture map copy now prefers one idea per sentence and scannable UI-ready mission, clue, evidence and trace language while retaining the real-path and JSON constraints. |
 | `lessons-v2` | lessons1 / lessons2 | 2026-11-20 | Foundations copy now prefers short, scannable, mission-ready explanations and keeps the existing 250–500-word and real-codeRef constraints. |
 | `debug-v4` | debug | 2026-11-24 | Removes whyItWorks (Underlying concept) from debug generation to streamline output, avoid unnecessary token usage, and focus on real evidence, audited data path and actionable fix steps. |
-| `roast-v1` | repo roast | 2026-11-20 | Generates one affectionate 8-30-word repo roast tied to exactly one real snapshot file. |
+| `roast-v2` | repo roast | 2026-11-26 | Grounds Repo Roast in pre-computed VERIFIED FACTS from the snapshot, requires observable evidence in the snippet, removes README/code mismatch hints, and forbids missing-file claims. |
 
 Every prompt change = version bump + this table + a Decisions Log entry.
 
@@ -670,10 +670,20 @@ Append-only. Newest last.
   counter — only the learning data (XP, badges, project docs) is cleared.
   Rejected: keeping the query-based count (delete+reconnect bypass), or storing the counter on
   the project collection (would still require counting active docs instead of a single field read).
+- **2026-11-26 — Ground Repo Roast in pre-computed structural facts and ban missing-file claims (`roast-v2`).**
+  Ingestion intentionally excludes `.env*` (including `.env.template`), lockfiles, binaries, and files beyond the 60-file / 150k-char cap, so `README.md` mentioning `.env.template` caused the model to hallucinate a "README/code mismatch" claim that the file was missing from the repo. `computeRoastFacts` now computes deterministic structural facts (`todoFiles`, `duplicateNames`, `largeFiles`, `depCount`, `authFiles`) injected as `VERIFIED FACTS`, `buildRoastUserPrompt` removes the `README/code mismatch` target hint, and both system/user prompts require observations literally visible in the snapshot while forbidding claims that any file is missing. The strict one-roast-per-project cap is preserved without adding a user-facing retry option.
+  Rejected: removing the one-roast-per-project cap or adding retry buttons (user requested preserving the strict cap); changing `.env*` exclusion in `ingest.ts` alone (still leaves truncated/capped files vulnerable to missing-file claims).
 
 ## Change Log
 
 Newest first.
+
+- **2026-11-26 — Ground Repo Roast in verified snapshot facts and forbid missing-file hallucinations.**
+  Files: `src/lib/prompts.ts`, `src/lib/pipeline/roast-runner.ts`, `src/lib/pipeline/roast.test.ts`, `PROJECT_CONTEXT.md`.
+  Why: Repo Roast claimed a `.env.template` listed in `README.md` was missing from a Python repo even though it existed in GitHub (ingestion excludes `.env*` files from snapshots, and low-signal clean repos invited `README/code mismatch` hallucinations).
+  What: bumped `ROAST_PROMPT_VERSION` to `roast-v2`, added deterministic `computeRoastFacts` (`todoFiles`, `duplicateNames`, `largeFiles`, `depCount`, `authFiles`) in `src/lib/prompts.ts`, injected `VERIFIED FACTS` into `buildRoastUserPrompt` via `runRepoRoast`, removed `README/code mismatch` from roast target hints, required literal snapshot evidence, and forbade claiming any file is missing from the repo while keeping the strict one-roast-per-project cap.
+  Verify: `npx tsc --noEmit`, `npm run lint`, and `npm test` (119/119) green (`next build` requires network for Google Fonts in `src/app/layout.tsx`).
+  Manual: connect a clean repo containing `.env.template` and a `README.md` referencing it, click **Roast my project**, and verify Geko roasts an observable code/fact pattern rather than claiming `.env.template` is missing; confirm the one-roast cap stays enforced.
 
 - **2026-11-26 — Progress reset keeps projects; debug quota preserved.**
   Files: `src/app/actions/profile.ts`, `src/components/app/profile-actions.tsx`, `PROJECT_CONTEXT.md`.

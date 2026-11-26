@@ -18,6 +18,8 @@ import { adminDb } from "@/lib/firebase/admin";
 import { normalizeRepoUrl, parseRepoUrl } from "@/lib/pipeline/ingest";
 import { repoRoastDocRef } from "@/lib/projects";
 import { runRepoRoast } from "@/lib/pipeline/roast-runner";
+import { userDocRef } from "@/lib/auth/users";
+import { UserDocSchema } from "@/lib/domain/user";
 
 export type CreateProjectResult =
   | { ok: true; projectId: string }
@@ -78,14 +80,23 @@ export async function createProject(repoUrlInput: string): Promise<CreateProject
 
   try {
     await db.runTransaction(async (tx) => {
-      const owned = await tx.get(projects.where("ownerUid", "==", user.uid));
-      if (owned.size >= MAX_PROJECTS) throw new ProjectLimitError();
+      // Use the lifetime counter on users/{uid} so deleted projects still count.
+      const userSnap = await tx.get(userDocRef(user.uid));
+      const userParsed = UserDocSchema.safeParse(userSnap.data());
+      const currentCount = userParsed.success
+        ? userParsed.data.projectsCreatedCount
+        : 0;
+      if (currentCount >= MAX_PROJECTS) throw new ProjectLimitError();
 
       tx.set(projectRef, doc);
       tx.set(projectRef.collection("events").doc(), {
         type: "project_created",
         at: now,
         meta: { repoUrl: doc.repoUrl },
+      });
+      // Increment the lifetime counter atomically.
+      tx.update(userDocRef(user.uid), {
+        projectsCreatedCount: currentCount + 1,
       });
     });
   } catch (error) {

@@ -222,18 +222,25 @@ request walkthrough, quizzes, the debug detective board and the debug signal tra
 
 As built through Phase 6 (all timestamps are epoch **milliseconds**, not Firestore Timestamp):
 
-- `users/{uid}` — `{ email, displayName, photoURL|null, totalXp: 0, badges: [], createdAt }`.
+- `users/{uid}` — `{ email, displayName, photoURL|null, totalXp: 0, badges: [], createdAt, projectsCreatedCount: 0 }`.
   Written inside a transaction: created once on first sign-in, afterwards only `email` and
   `photoURL` refresh; `displayName` is user-editable and is preserved across later sign-ins.
   `totalXp` and `badges` are awarded inside lesson, debug and overview transactions and reset
-  by the authenticated profile reset action.
+  by the authenticated profile reset action. `projectsCreatedCount` is a lifetime counter
+  incremented atomically inside the `createProject` transaction and **never decremented on
+  deletion**, so the 3-project cap cannot be bypassed by deleting and re-adding projects.
+  Existing users without the field parse as `0` (zod `.default(0)`).
+  Profile reset clears `totalXp`, `badges`, and each project's `progress/{uid}` document
+  (pathway progress, lesson/quiz records, overview sections, XP within progress). It **does not**
+  delete projects, pipeline output, `debugSessions`, `debugUsage` quota, or `projectsCreatedCount`.
 - `users/{uid}/debugUsage/{pid}` — `{ projectId, sessionsUsed, updatedAt }`. Admin-only
   per-project debug-session reservations; nested documents have no client Firestore rule.
   Atomic reservation prevents concurrent requests from exceeding the free-plan limit of two;
-  failed analysis attempts count. Profile reset deletes these records.
+  failed analysis attempts count. Profile reset **preserves** these records so resetting progress
+  cannot be used to generate unlimited debug sessions.
 - `projects/{pid}` — `{ ownerUid, repoUrl, owner, repo, title, stage, stageError: string|null,
   stack: Stack|null, createdAt, updatedAt, lessonCount }`. Created by `createProject` inside a
-  transaction that re-counts the owner's projects (cap 3). Stage values: `created`,
+  transaction that checks `users/{uid}.projectsCreatedCount` against the cap (3). Stage values: `created`,
   `ingested`, `architecture`, `lessons1`, `lessons2`, `ready`, `failed:{ingested|architecture|
   lessons1|lessons2}`. Only route handlers advance it. `lessons2` writes `ready` directly
   (BLUEPRINT §8), so the `lessons2` stage remains legal but is never persisted.
@@ -655,9 +662,39 @@ Append-only. Newest last.
   Rejected: UI-only hiding (would continue to spend model tokens and latency on unused prose and risk
   audit retries on hallucinated concept paths).
 
+- **2026-11-26 — 3-project cap counts lifetime connections, not active projects.**
+  Users connect repositories; the cap now tracks the total ever connected, so deleting a project
+  does not free a slot. `users/{uid}.projectsCreatedCount` is a never-decremented counter
+  incremented atomically inside the `createProject` transaction (the old query-based `owned.size`
+  check is replaced by reading this counter). `profile reset` intentionally does NOT reset this
+  counter — only the learning data (XP, badges, project docs) is cleared.
+  Rejected: keeping the query-based count (delete+reconnect bypass), or storing the counter on
+  the project collection (would still require counting active docs instead of a single field read).
+
 ## Change Log
 
 Newest first.
+
+- **2026-11-26 — Progress reset keeps projects; debug quota preserved.**
+  Files: `src/app/actions/profile.ts`, `src/components/app/profile-actions.tsx`, `PROJECT_CONTEXT.md`.
+  Why: reset should let users redo pathways on their existing projects without also restoring
+  debug session quota (which could allow unlimited debug generation via reset cycling).
+  What: `clearUserProgressAction` now deletes only `projects/{pid}/progress/{uid}` per owned
+  project instead of recursively deleting project docs. `debugUsage` quota is no longer cleared.
+  Projects, snapshots, guidebooks, lessons, and debug sessions remain untouched. UI copy updated.
+  Verify: `npx tsc --noEmit` clean, `npm test` 111/111.
+  Manual: connect a project, complete a pathway, reset progress → project still appears on
+  `/projects`, pathway progress back to 0%, debug sessions still visible, debug quota unchanged.
+
+- **2026-11-26 — 3-project cap uses lifetime counter, not active project count.**
+  Files: `src/lib/domain/user.ts`, `src/app/actions/projects.ts`, `PROJECT_CONTEXT.md`.
+  Why: users could delete a project then reconnect a new one, bypassing the 3-project cap.
+  What: added `projectsCreatedCount` to `UserDocSchema` (`.default(0)` for backward compat),
+  updated `emptyUserDoc`, changed `createProject` transaction to read the counter from
+  `users/{uid}` and increment it atomically instead of querying active-project count.
+  `clearUserProgressAction` deliberately preserves this counter.
+  Verify: `npx tsc --noEmit` clean, `npm test` 111/111.
+  Manual: connect 3 repos → reach limit; delete one → try to connect a 4th → still blocked.
 
 - **2026-11-24 — Remove Underlying Concept section from Debug & Learn end-to-end.**
   Files: `src/app/(app)/projects/[id]/debug/[sid]/page.tsx`, `src/app/(app)/projects/[id]/debug/page.tsx`,

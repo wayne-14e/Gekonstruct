@@ -107,7 +107,7 @@ export function AccountActions() {
 
       setConfirmation("");
       setDialogOpen(false);
-      setMessage({ error: false, text: "Your projects, progress, XP, and badges have been erased." });
+      setMessage({ error: false, text: "Your pathway progress, XP, and badges have been reset. Your projects and debug sessions are still there." });
       router.refresh();
     });
   }
@@ -135,15 +135,15 @@ export function AccountActions() {
         Account actions
       </h2>
       <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-        Erasing progress permanently removes every project, its saved work, your badges, and
-        XP. Your sign-in account and profile name will remain.
+        Erasing progress resets your pathway completions, XP, and badges. Your projects and
+        debug sessions will stay exactly as they are.
       </p>
 
       <div className="mt-5 flex flex-col gap-3 border-t border-[#65302d]/70 pt-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="max-w-lg">
           <p className="text-sm font-semibold">Start over</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            This cannot be undone. You can connect projects again after the reset.
+            Your projects and debug sessions will remain. This cannot be undone.
           </p>
         </div>
         <Button
@@ -156,7 +156,7 @@ export function AccountActions() {
           disabled={pending}
         >
           <Trash2 aria-hidden="true" />
-          Erase all progress
+          Reset progress
         </Button>
       </div>
 
@@ -195,11 +195,11 @@ export function AccountActions() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Erase all progress and projects?</DialogTitle>
+            <DialogTitle>Reset pathway progress?</DialogTitle>
             <DialogDescription>
-              This permanently deletes every project and all nested project data, then resets
-              your XP and badges. Your account and profile name will remain. This action cannot
-              be undone.
+              This resets your progress on all pathways (Architecture Map and Foundations) to 0%,
+              and clears your XP and badges. Your projects, pipeline output, and debug sessions
+              are preserved. Debug session quota is not restored. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -241,7 +241,7 @@ export function AccountActions() {
               onClick={clearProgress}
             >
               <RotateCcw aria-hidden="true" />
-              {pending ? "Erasing…" : "Erase everything"}
+              {pending ? "Resetting…" : "Reset progress"}
             </Button>
           </DialogFooter>
         </DialogContent>

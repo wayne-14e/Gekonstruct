@@ -38,8 +38,20 @@ export async function updateDisplayNameAction(input: unknown): Promise<ProfileAc
 }
 
 /**
- * Removes only projects owned by the verified session user, including their subcollections.
- * The profile and authentication account remain available for a fresh start.
+ * Resets learning progress for the verified session user without deleting projects.
+ *
+ * What is cleared:
+ *   - `projects/{pid}/progress/{uid}` for each owned project (pathway progress,
+ *     lesson/quiz completions, overview sections, understood steps, XP, badges within progress)
+ *   - `users/{uid}.totalXp` and `users/{uid}.badges`
+ *
+ * What is intentionally preserved:
+ *   - Project documents themselves (projects stay on the projects page)
+ *   - Snapshots, guidebooks, lessons — all pipeline output remains
+ *   - `projects/{pid}/debugSessions/*` — debug analyses stay (users can re-read them)
+ *   - `users/{uid}/debugUsage/{pid}` — debug session quota is NOT restored, so reset
+ *     cannot be used to generate unlimited debug sessions
+ *   - `users/{uid}.projectsCreatedCount` — the lifetime cap is never reset
  */
 export async function clearUserProgressAction(input: unknown): Promise<ProfileActionResult> {
   const user = await getCurrentUser();
@@ -55,11 +67,12 @@ export async function clearUserProgressAction(input: unknown): Promise<ProfileAc
       .where("ownerUid", "==", user.uid)
       .get();
 
+    // Delete only the per-user progress document for each project.
+    // All other subcollections (snapshot, guidebook, lessons, debugSessions) are preserved.
     for (const project of ownedProjects.docs) {
-      await db.recursiveDelete(project.ref);
+      await project.ref.collection("progress").doc(user.uid).delete();
     }
 
-    await db.recursiveDelete(userDocRef(user.uid).collection("debugUsage"));
     await userDocRef(user.uid).update({ totalXp: 0, badges: [] });
     revalidatePath("/", "layout");
     return { ok: true };
@@ -67,8 +80,7 @@ export async function clearUserProgressAction(input: unknown): Promise<ProfileAc
     console.error("clearUserProgressAction failed", error);
     return {
       ok: false,
-      error:
-        "The reset did not finish. Some projects may already be erased; try again to remove any remaining data.",
+      error: "The reset did not finish. Please try again.",
     };
   }
 }

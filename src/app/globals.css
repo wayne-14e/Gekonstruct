@@ -285,6 +285,20 @@
   animation: geko-trace 3.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
+/* Horizontal signal sweep across active pipeline bars and step cards. */
+@keyframes geko-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(360%);
+  }
+}
+
+@utility animate-sweep {
+  animation: geko-sweep 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
 .geko-guided-line {
   background: rgba(91, 224, 0, 0.10);
   border-left: 2px solid #5be000;

@@ -108,8 +108,7 @@ short subtitle, two CTAs, limits line) above a full-width sample-pipeline window
 mac-style red/yellow/green dots, followed by the pathways, how-it-works and closing CTA.
 Signed-in visitors are redirected to `/dashboard`; signing out returns them to `/`.
 
-Last verified: 2026-11-24 — `npm run build`, `npx tsc --noEmit`, `npm run lint`, and
-`npm test` green (111/111). Underlying concept panel removed end-to-end from Debug & Learn pathway. Signal trace in Debug & Learn pathway renders hop text stably without scaling/bouncing animations. Architecture uses a four-section pager, React Flow skill map,
+Last verified: 2026-11-26 — `npx tsc --noEmit`, `npm run lint`, `npm test` (124/124), and `npm run build` green. `PipelineRunner` renders a connected signal-trace rail with circular dot nodes, immediate green state on finished stages, and live pulse/sweep animations. Underlying concept panel removed end-to-end from Debug & Learn pathway. Signal trace in Debug & Learn pathway renders hop text stably without scaling/bouncing animations. Architecture uses a four-section pager, React Flow skill map,
 and a saved, step-by-step request walkthrough;
 Foundations include a progressive Monaco split workspace; Debug includes
 the detective board and the audited signal trace of how data moves between components. The header includes Profile and the account popup labels Community as
@@ -197,7 +196,7 @@ Routes as built: `/` (landing, signed-out only — a signed-in visitor is redire
 Key modules as built: `src/lib/firebase/{config,client,admin}.ts`, `src/lib/auth/{session,users}.ts`,
 `src/lib/domain/{user,project,architecture,lesson,progress,event,debug}.ts`,
 `src/lib/pipeline/{ingest,stack,ingest-runner,architecture,architecture-runner,
-lessons,lessons-runner,lessons-route,debug,debug-runner}.ts`,
+lessons,lessons-runner,lessons-route,debug,debug-runner,runner-state}.ts`,
 `src/lib/{github,projects,debug,activity,llm,prompts,lessons,quiz,badges,analytics,code-language}.ts`,
 `src/lib/domain/activity.ts`,
 `src/lib/nav.ts`, `src/app/actions/{auth,projects,lessons,debug,progress,profile}.ts`,
@@ -677,6 +676,27 @@ Append-only. Newest last.
 ## Change Log
 
 Newest first.
+
+- **2026-11-26 — Connect pipeline progress dots into a live green signal trace.**
+  Files: `src/components/projects/pipeline-runner.tsx`,
+  `src/lib/pipeline/runner-state.ts`, `src/lib/pipeline/runner-state.test.ts`,
+  `src/app/globals.css`, `PROJECT_CONTEXT.md`.
+  Why: `PipelineRunner` previously showed disconnected vertical step boxes, did not track
+  locally finished steps or refresh between stages (so "Ingest the repository" reverted to
+  pending/gray while later steps ran), and had only a static `Loader2` spinner during
+  20–60s runs.
+  What: added `resolveRunnerProgress` / `initialFailedStep` so completed stages stay green
+  immediately as each stage finishes and `router.refresh()` runs after every stage; restyled
+  the pipeline step list in the dark signal-trace panel style (`#090e13` + `field-grid`)
+  with connected circular dot nodes (green check circles when done, pulsing radar dots when
+  active, muted/next dots when pending), green/animated vertical connector rails (`animate-trace`
+  traveling pulse), and a horizontal `animate-sweep` signal beam on the progress bar and active
+  step card.
+  Verify: `npx tsc --noEmit`, `npm run lint`, `npm test` (124/124) and `npm run build` green.
+  Manual: connect a public repo on `/dashboard`, open `/projects/[id]`, click **Start the
+  pipeline**, and confirm the vertical dots are connected by a rail; once **Ingest the
+  repository** finishes, its dot, card tint, and downward connector turn green immediately
+  while **Map the architecture** pulses with a traveling signal pulse and sweep animation.
 
 - **2026-11-26 — Ground Repo Roast in verified snapshot facts and forbid missing-file hallucinations.**
   Files: `src/lib/prompts.ts`, `src/lib/pipeline/roast-runner.ts`, `src/lib/pipeline/roast.test.ts`, `PROJECT_CONTEXT.md`.
